@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Create event — Verdict Ledger{% endblock %}
+{% block content %}
+<h1>Create event</h1>
+{% if error %}<p class="field-error">{{ error }}</p>{% endif %}
+<form class="stack" method="post" action="{{ url_for('create_event') }}">
+  <div>
+    <label for="name">Name</label>
+    <input type="text" id="name" name="name" required>
+  </div>
+  <div>
+    <label for="description">Description</label>
+    <textarea id="description" name="description"></textarea>
+  </div>
+  <div>
+    <label for="start_at">Start time (ISO 8601 UTC)</label>
+    <input type="text" id="start_at" name="start_at" placeholder="2026-10-01T18:00:00Z">
+  </div>
+  <div>
+    <label for="submissions_close">Submissions close (ISO 8601 UTC)</label>
+    <input type="text" id="submissions_close" name="submissions_close" required
+           placeholder="2026-10-03T18:00:00Z">
+  </div>
+  <div>
+    <label for="judging_close">Judging close (ISO 8601 UTC, optional)</label>
+    <input type="text" id="judging_close" name="judging_close" placeholder="2026-10-05T18:00:00Z">
+  </div>
+  <div>
+    <label for="tracks">Tracks (comma-separated)</label>
+    <input type="text" id="tracks" name="tracks" placeholder="Developer tools, Fintech, Health">
+  </div>
+  <div>
+    <label for="prizes">Prizes (comma-separated)</label>
+    <input type="text" id="prizes" name="prizes" placeholder="Grand Prize, Runner-Up">
+  </div>
+  <button type="submit">Create event</button>
+</form>
+{% endblock %}

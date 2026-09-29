@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Control room — Verdict Ledger{% endblock %}
+{% block content %}
+<h1>Control room</h1>
+<p>Factual operational status for every event this instance hosts.</p>
+<div class="actions">
+  <a class="btn" href="{{ url_for('create_event') }}">Create event</a>
+</div>
+
+{% for ev in events %}
+<div class="section">
+  <div class="section-title-row">
+    <h2>{{ ev['name'] }} <span class="tag tag-neutral">{{ stats[ev['id']]['status'] }}</span></h2>
+    <span class="meta id">{{ ev['id'] }}</span>
+  </div>
+
+  <div class="stat-grid">
+    <div class="stat"><span class="n">{{ stats[ev['id']]['teams'] }}</span><span class="label">Teams</span></div>
+    <div class="stat"><span class="n">{{ stats[ev['id']]['projects'] }}</span><span class="label">Projects</span></div>
+    <div class="stat"><span class="n">{{ stats[ev['id']]['assigned'] }}</span><span class="label">Assigned reviews</span></div>
+    <div class="stat"><span class="n">{{ stats[ev['id']]['completed'] }}</span><span class="label">Completed</span></div>
+    <div class="stat"><span class="n">{{ stats[ev['id']]['remaining'] }}</span><span class="label">Remaining</span></div>
+  </div>
+
+  <div class="actions">
+    <a class="btn secondary" href="{{ url_for('integrity_view', event_id=ev['id']) }}">View integrity</a>
+    <a class="btn secondary" href="{{ url_for('manage_judges', event_id=ev['id']) }}">Manage judges</a>
+    <a class="btn secondary" href="{{ url_for('manage_assignments', event_id=ev['id']) }}">Assignments</a>
+    <a class="btn secondary" href="{{ url_for('rubric_builder', event_id=ev['id']) }}">Rubric</a>
+    {% if stats[ev['id']]['can_normalize'] %}
+    <form method="post" action="{{ url_for('run_normalization_route', event_id=ev['id']) }}" style="display:inline">
+      <button type="submit" class="secondary">Run normalization</button>
+    </form>
+    {% else %}
+    <span class="meta">Normalization opens once submissions close.</span>
+    {% endif %}
+    <a class="btn secondary" href="{{ url_for('results_view', event_id=ev['id']) }}">View results</a>
+    <a class="btn secondary" href="{{ url_for('export_csv', event=ev['id']) }}">Export CSV</a>
+    {% if stats[ev['id']]['can_publish'] %}
+    <form method="post" action="{{ url_for('publish_results', event_id=ev['id']) }}" style="display:inline">
+      <button type="submit">Publish results</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+
+<div class="section">
+  <h2>Other</h2>
+  <div class="actions">
+    <a class="btn secondary" href="{{ url_for('judge_progress') }}">Judge progress (all events)</a>
+    <a class="btn secondary" href="{{ url_for('audit_log_view') }}">Audit log</a>
+  </div>
+</div>
+{% endblock %}

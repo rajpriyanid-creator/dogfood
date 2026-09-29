@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}My assignments — Verdict Ledger{% endblock %}
+{% block content %}
+<h1>My assignments</h1>
+<p>Only projects assigned to you appear here. You will never see another judge's scores — the backend enforces that on every score-reading request, not just on this page.</p>
+
+<table class="ledger">
+  <thead>
+    <tr><th>Project</th><th>Status</th><th></th></tr>
+  </thead>
+  <tbody>
+    {% for a in assignments %}
+      <tr>
+        <td>{{ a['title'] }}</td>
+        <td>
+          {% if a['scored'] %}<span class="tag tag-pass">Reviewed</span>{% else %}<span class="tag tag-neutral">Pending</span>{% endif %}
+        </td>
+        <td><a href="{{ url_for('judge_review', project_id=a['project_id']) }}">Open</a></td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

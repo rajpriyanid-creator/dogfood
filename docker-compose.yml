@@ -1,0 +1,20 @@
+services:
+  portal:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - verdict-data:/data
+    environment:
+      - VERDICT_LEDGER_DB=/data/verdict_ledger.db
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/healthz')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    # No network dependency at runtime: the app talks only to its own
+    # SQLite file under /data. Safe to run with the host's network
+    # physically disabled once the image is built.
+
+volumes:
+  verdict-data:

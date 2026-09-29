@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Assignments — Verdict Ledger{% endblock %}
+{% block content %}
+<h1>Assignments — {{ event['name'] }}</h1>
+
+<form method="post" action="{{ url_for('manage_assignments', event_id=event['id']) }}" class="actions">
+  <label for="target_reviews">Target reviews per project</label>
+  <input type="number" id="target_reviews" name="target_reviews" value="3" min="1" style="max-width:80px">
+  <button type="submit">Generate / update assignments</button>
+</form>
+<p class="meta">Assignment generation is deterministic and additive — re-running it does not remove existing assignments, only adds ones that don't already exist.</p>
+
+<table class="ledger">
+  <thead><tr><th>Judge</th><th>Project</th><th>Created</th></tr></thead>
+  <tbody>
+    {% for r in rows %}
+      <tr>
+        <td>{{ r['judge_name'] }} <span class="id">{{ r['judge_id'] }}</span></td>
+        <td>{{ r['project_title'] }} <span class="id">{{ r['project_id'] }}</span></td>
+        <td class="mono">{{ r['created_at'] }}</td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

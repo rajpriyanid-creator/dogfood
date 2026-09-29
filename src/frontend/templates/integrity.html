@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Integrity — Verdict Ledger{% endblock %}
+{% block content %}
+<h1>Integrity — {{ event['name'] }}</h1>
+<p class="meta">Every figure below is computed from the stored reviews for this event when you load the page. {{ total_reviews }} review{{ '' if total_reviews == 1 else 's' }} in total.</p>
+
+<div class="section">
+  <h2>Reviews per judge</h2>
+  <table class="ledger">
+    <thead><tr><th>Judge</th><th>Reviews</th><th>Mean raw score</th><th>Variance</th><th>Flags</th></tr></thead>
+    <tbody>
+      {% for j in judge_table %}
+      <tr>
+        <td>{{ j['name'] }} <span class="id">{{ j['judge_id'] }}</span></td>
+        <td>{{ j['n'] }}</td>
+        <td class="mono">{{ '%.3f'|format(j['mean']) }}</td>
+        <td class="mono">{{ '%.3f'|format(j['variance']) }}</td>
+        <td>
+          {% if j['zero_variance'] %}<span class="tag tag-fail">zero variance</span>{% endif %}
+          {% if j['low_sample'] %}<span class="tag tag-neutral">1 review</span>{% endif %}
+          {% if j['judge_id'] in high_workload|map(attribute='judge_id') %}<span class="tag tag-neutral">high workload</span>{% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5">No reviews recorded for this event.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="section">
+  <h2>Review coverage per project</h2>
+  {% if coverage_dist %}
+    <table class="ledger">
+      <thead><tr><th>Reviews received</th><th>Projects</th></tr></thead>
+      <tbody>{% for reviews, projects in coverage_dist %}<tr><td>{{ reviews }}</td><td>{{ projects }}</td></tr>{% endfor %}</tbody>
+    </table>
+  {% else %}<p>No submitted projects.</p>{% endif %}
+</div>
+
+<div class="section">
+  <h2>Duplicate candidates</h2>
+  {% if not duplicates %}<p>None found.</p>{% endif %}
+  {% for d in duplicates %}
+    <div class="callout">
+      <strong>Potential duplicate submission</strong><br>
+      {{ d['title'] }}<br>
+      <span class="id">{{ d['ids'].split(',')|join(' · ') }}</span><br>
+      Same title in the same event. Kept as recorded — nothing is merged or deleted automatically.
+    </div>
+  {% endfor %}
+</div>
+
+<div class="section">
+  <h2>Zero-variance judges</h2>
+  {% if not zero_variance %}<p>None found.</p>{% endif %}
+  {% for z in zero_variance %}
+    <div class="callout">
+      <strong>{{ z['name'] }}</strong> <span class="id">{{ z['judge_id'] }}</span><br>
+      Zero-variance judge — {{ z['n'] }} reviews, all weighted raw scores = {{ '%.2f'|format(z['mean']) }}.<br>
+      Normalization falls back to the global baseline for this judge.
+    </div>
+  {% endfor %}
+</div>
+
+<div class="section">
+  <h2>Low-sample judges</h2>
+  {% if not low_sample %}<p>None found.</p>{% endif %}
+  {% for l in low_sample %}
+    <div class="callout">
+      <strong>{{ l['name'] }}</strong> <span class="id">{{ l['judge_id'] }}</span> — 1 review.
+      With a single review there is no spread to measure, so normalization falls back to the global baseline for this judge.
+    </div>
+  {% endfor %}
+</div>
+
+<div class="section">
+  <h2>High-workload judges</h2>
+  <p class="meta">Flagged when a judge has more than 1.5× the median review count (median here: {{ '%g'|format(workload_median) }}).</p>
+  {% if not high_workload %}<p>None found.</p>{% endif %}
+  {% for h in high_workload %}
+    <div class="callout"><strong>{{ h['name'] }}</strong> <span class="id">{{ h['judge_id'] }}</span> — {{ h['n'] }} reviews.</div>
+  {% endfor %}
+</div>
+
+<div class="section">
+  <h2>Track mismatches</h2>
+  {% if not mismatches %}<p>None found.</p>{% endif %}
+  {% for m in mismatches %}
+    <div class="callout">
+      <strong>{{ m['name'] }}</strong> <span class="id">{{ m['judge_id'] }}</span> reviewed
+      {{ m['title'] }} <span class="id">{{ m['project_id'] }}</span>, in a track they are not registered as eligible for.
+    </div>
+  {% endfor %}
+</div>
+
+<div class="section">
+  <h2>Missing comments</h2>
+  <p>{{ missing_comments }} of {{ total_reviews }} review{{ '' if total_reviews == 1 else 's' }} have no comment. Comments are optional.</p>
+</div>
+{% endblock %}

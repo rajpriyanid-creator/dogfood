@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Why did this change? — Verdict Ledger{% endblock %}
+{% block content %}
+<h1>{{ result['title'] }}</h1>
+<p class="meta"><span class="id">{{ project_id }}</span> · normalization run v{{ run['version'] }}</p>
+
+<div class="stat-grid">
+  <div class="stat"><span class="n">{{ '%.2f'|format(result['raw_score']) }}</span><span class="label">Raw score</span></div>
+  <div class="stat"><span class="n">{{ '%.2f'|format(result['normalized_score']) }}</span><span class="label">Normalized score</span></div>
+  <div class="stat"><span class="n">{{ result['review_count'] }}</span><span class="label">Reviews</span></div>
+  <div class="stat"><span class="n">{{ '%+.2f'|format(result['normalized_score'] - result['raw_score']) }}</span><span class="label">Change</span></div>
+</div>
+
+<div class="section">
+  <h2>Judge-by-judge calculation</h2>
+  <p>Every review that fed this result, with the exact inputs to the normalization formula. See JUDGING.md for the full derivation.</p>
+
+  {% for jb in judge_breakdown %}
+    <div class="entry">
+      <h3>{{ jb['judge_name'] }} <span class="id">{{ jb['judge_id'] }}</span></h3>
+      <div class="calc-line"><span class="k">Raw weighted score (S)</span><span>{{ '%.3f'|format(jb['raw']) }}</span></div>
+      <div class="calc-line"><span class="k">Judge sample size (n)</span><span>{{ jb['n'] }}</span></div>
+      <div class="calc-line"><span class="k">Judge mean</span><span>{{ '%.3f'|format(jb['judge_mean']) if jb['judge_mean'] is not none else '—' }}</span></div>
+      <div class="calc-line"><span class="k">Judge variance</span><span>{{ '%.3f'|format(jb['judge_variance']) if jb['judge_variance'] is not none else '—' }}</span></div>
+      <div class="calc-line"><span class="k">Shrunk mean (μ*)</span><span>{{ '%.3f'|format(jb['shrunk_mean']) if jb['shrunk_mean'] is not none else '—' }}</span></div>
+      <div class="calc-line"><span class="k">Shrunk std. dev (σ*)</span><span>{{ '%.3f'|format(jb['shrunk_sd']) if jb['shrunk_sd'] is not none else '—' }}</span></div>
+      <div class="calc-line"><span class="k">z = (S − μ*) / σ*</span><span>{{ '%.3f'|format(jb['z']) if jb['z'] is not none else 'n/a' }}</span></div>
+      <div class="calc-line"><span class="k">Normalized value N</span><span>{{ '%.3f'|format(jb['normalized']) }}</span></div>
+      {% if jb['z'] is none %}
+        <div class="callout">
+          {% if jb['n'] == 1 %}
+            This judge submitted 1 review, so there is no spread to measure. Normalization falls back to the global mean.
+          {% else %}
+            Zero-variance judge: all {{ jb['n'] }} of this judge's weighted raw scores are identical, so they carry no relative
+            discrimination signal. Normalization falls back to the global mean.
+          {% endif %}
+        </div>
+      {% elif jb['n'] is not none and jb['n'] <= 2 %}
+        <div class="callout">Only {{ jb['n'] }} reviews: this judge's statistics are strongly shrunk toward the global distribution.</div>
+      {% endif %}
+      <p class="meta">Comment: {{ jb['comment'] }}</p>
+    </div>
+  {% endfor %}
+</div>
+
+<p><a href="{{ url_for('results_view', event_id=event_id) }}">Back to results</a></p>
+{% endblock %}

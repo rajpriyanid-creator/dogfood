@@ -1,0 +1,30 @@
+# .dogfood.toml
+# Real values matching the running Verdict Ledger application.
+# Run the checker with:  python3 run.py .dogfood.toml
+
+[portal]
+base_url = "http://localhost:8080"
+
+[tiers]
+claimed = ["T1", "T2"]
+pitch = "A self-hosted hackathon platform where judging is backend-isolated, statistically calibrated, and reproducible from recorded evidence."
+
+[auth]
+# Fixed demo session tokens created by scripts/seed.py on first boot.
+# See README.md "Seeded accounts" for the full list.
+organizer   = "Cookie: session=org_demo_token"
+judge_a     = "Cookie: session=jdg_a_demo_token"
+judge_b     = "Cookie: session=jdg_b_demo_token"
+participant = "Cookie: session=prt_demo_token"
+
+[routes]
+gallery      = "/projects"
+submit       = "/projects/new"
+judge_scores = "/api/judge/scores"
+# peer_scores is the genuine endpoint that would return judge_a's scores
+# if the authorization layer were incorrectly implemented. The backend
+# checks the authenticated session's identity against the requested
+# judge, not the other way around — see api_judge_own_scores() in
+# src/backend/app.py.
+peer_scores  = "/api/judge/scores?judge=jdg_01"
+csv_export   = "/api/export.csv?event=evt_01"

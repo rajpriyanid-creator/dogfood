@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Judges — Verdict Ledger{% endblock %}
+{% block content %}
+<h1>Judges — {{ event['name'] }}</h1>
+
+<table class="ledger">
+  <thead><tr><th>Judge</th><th>Email</th><th>Eligible tracks</th></tr></thead>
+  <tbody>
+    {% for j in judges %}
+      <tr>
+        <td>{{ j['name'] }} <span class="id">{{ j['id'] }}</span></td>
+        <td>{{ j['email'] }}</td>
+        <td>{{ j['track_ids'] or '—' }}</td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<div class="section">
+  <h2>Invite a judge</h2>
+  <p>On a self-hosted, offline instance, "inviting" a judge means directly provisioning their account here — there is no external email service to send a real invite through.</p>
+  <form class="stack" method="post" action="{{ url_for('manage_judges', event_id=event['id']) }}">
+    <div>
+      <label for="name">Name</label>
+      <input type="text" id="name" name="name" required>
+    </div>
+    <div>
+      <label for="email">Email</label>
+      <input type="email" id="email" name="email" required>
+    </div>
+    <div>
+      <label for="track_ids">Eligible tracks</label>
+      <select id="track_ids" name="track_ids" multiple>
+        {% for t in tracks %}
+          <option value="{{ t['id'] }}">{{ t['name'] }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit">Invite judge</button>
+  </form>
+</div>
+{% endblock %}

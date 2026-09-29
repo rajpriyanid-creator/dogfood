@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}{{ project['title'] }} — Verdict Ledger{% endblock %}
+{% block content %}
+<h1>{{ project['title'] }}</h1>
+<p class="meta">{{ project['team_name'] }} · {{ project['track_name'] or 'No track' }} · <span class="id">{{ project['id'] }}</span> ·
+  {% if project['status'] == 'submitted' %}<span class="tag tag-pass">SUBMITTED</span>{% else %}<span class="tag tag-neutral">DRAFT</span>{% endif %}</p>
+
+{% if project['status'] == 'draft' and can_edit %}
+  <div class="actions">
+    <a class="btn secondary" href="{{ url_for('edit_project', project_id=project['id']) }}">Edit draft</a>
+  </div>
+{% endif %}
+
+{% if duplicate_of %}
+<div class="callout">
+  <strong>Potential duplicate submission.</strong> Another project shares this exact title, in the same event:
+  <ul>
+    {% for d in duplicate_of %}
+      <li><a href="{{ url_for('project_detail', project_id=d['id']) }}">{{ d['title'] }}</a> · <span class="id">{{ d['id'] }}</span></li>
+    {% endfor %}
+  </ul>
+  This is preserved as historical evidence from the fixture data, not deleted or merged automatically. An organizer can inspect both and decide.
+</div>
+{% endif %}
+
+<p>{{ project['summary'] or 'No summary provided' }}</p>
+{% if project['repo_url'] %}<p><a href="{{ project['repo_url'] }}">{{ project['repo_url'] }}</a></p>{% endif %}
+{% if project['submitted_at'] %}<p class="meta">Submitted {{ project['submitted_at'] }}</p>{% endif %}
+{% endblock %}

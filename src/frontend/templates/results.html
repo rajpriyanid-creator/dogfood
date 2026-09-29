@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Results — Verdict Ledger{% endblock %}
+{% block content %}
+<h1>Results — {{ event_id }}</h1>
+
+{% if not latest_run %}
+  <p>No normalization run yet. Run it from the <a href="{{ url_for('organizer_room') }}">control room</a>.</p>
+{% else %}
+  <p class="meta">Normalization run v{{ latest_run['version'] }} · k = {{ latest_run['k_param']|int }} ·
+    global mean {{ '%.3f'|format(latest_run['global_mean']) }} · global variance {{ '%.3f'|format(latest_run['global_var']) }}</p>
+
+  <table class="ledger">
+    <thead><tr><th>Rank</th><th>Project</th><th>Reviews</th><th>Raw</th><th>Normalized</th><th>Change</th><th></th></tr></thead>
+    <tbody>
+      {% for r in results %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td>{{ r['title'] }} <span class="id">{{ r['project_id'] }}</span></td>
+          <td>{{ r['review_count'] }}</td>
+          <td>{{ '%.2f'|format(r['raw_score']) }}</td>
+          <td>{{ '%.2f'|format(r['normalized_score']) }}</td>
+          <td>{{ '%+.2f'|format(r['normalized_score'] - r['raw_score']) }}</td>
+          <td><a href="{{ url_for('explain_result', event_id=event_id, project_id=r['project_id']) }}">Why?</a></td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endif %}
+{% endblock %}

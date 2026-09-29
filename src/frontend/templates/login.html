@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Log in — Verdict Ledger{% endblock %}
+{% block content %}
+<h1>Log in</h1>
+<p>Use one of the seeded demo accounts, or your own if an organizer created it for you. See README.md for the full seeded account list.</p>
+{% if error %}<p class="field-error">{{ error }}</p>{% endif %}
+<form class="stack" method="post" action="{{ url_for('login') }}">
+  <div>
+    <label for="email">Email</label>
+    <input type="email" id="email" name="email" required>
+  </div>
+  <div>
+    <label for="password">Password</label>
+    <input type="password" id="password" name="password" required>
+  </div>
+  <button type="submit">Log in</button>
+</form>
+{% endblock %}

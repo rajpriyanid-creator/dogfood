@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Gallery — Verdict Ledger{% endblock %}
+{% block content %}
+<h1>Public gallery</h1>
+<p>Every submitted project, from every event this instance hosts. No account needed to browse.</p>
+
+<form class="filters" method="get" action="{{ url_for('gallery') }}">
+  <input type="text" name="q" placeholder="Search title or summary" value="{{ q }}">
+  <select name="track">
+    <option value="">All tracks</option>
+    {% for t in tracks %}
+      <option value="{{ t['id'] }}" {% if t['id'] == selected_track %}selected{% endif %}>{{ t['name'] }}</option>
+    {% endfor %}
+  </select>
+  <select name="event">
+    <option value="">All events</option>
+    {% for e in events %}
+      <option value="{{ e['id'] }}" {% if e['id'] == selected_event %}selected{% endif %}>{{ e['name'] }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit" class="secondary">Filter</button>
+</form>
+
+{% if not projects %}
+  <p>No projects match. Try clearing the filters.</p>
+{% endif %}
+
+{% for p in projects %}
+  <div class="entry">
+    <h3><a href="{{ url_for('project_detail', project_id=p['id']) }}">{{ p['title'] }}</a></h3>
+    <div class="meta">{{ p['team_name'] }} · {{ p['track_name'] or 'No track' }} · {{ p['event_name'] }} · <span class="id">{{ p['id'] }}</span></div>
+    <div class="summary">{{ p['summary'] or 'No summary provided' }}</div>
+    {% if p['repo_url'] %}<a href="{{ p['repo_url'] }}">{{ p['repo_url'] }}</a>{% endif %}
+  </div>
+{% endfor %}
+{% endblock %}

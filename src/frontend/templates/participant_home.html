@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}My team — Verdict Ledger{% endblock %}
+{% block content %}
+<h1>My team</h1>
+
+{% if not team %}
+  <p>You are not on a team yet.</p>
+  <div class="section">
+    <h2>Create a team</h2>
+    <form class="stack" method="post" action="{{ url_for('create_team') }}">
+      <div>
+        <label for="name">Team name</label>
+        <input type="text" id="name" name="name" required>
+      </div>
+      <input type="hidden" name="event_id" value="evt_live_2026">
+      <button type="submit">Create team</button>
+    </form>
+  </div>
+  <div class="section">
+    <h2>Join a team by invite code</h2>
+    <form class="stack" method="post" action="{{ url_for('join_team') }}">
+      <div>
+        <label for="invite_code">Invite code</label>
+        <input type="text" id="invite_code" name="invite_code" required>
+      </div>
+      <button type="submit" class="secondary">Join team</button>
+    </form>
+  </div>
+{% else %}
+  <p><strong>{{ team['name'] }}</strong> · invite code <span class="id">{{ team['invite_code'] }}</span></p>
+
+  {% if event %}
+    <p class="meta">Event: {{ event['name'] }} — status:
+      {% if open_now %}<span class="tag tag-pass">SUBMISSION OPEN</span>{% else %}<span class="tag tag-fail">SUBMISSION CLOSED</span>{% endif %}
+    </p>
+  {% endif %}
+
+  <div class="section">
+    <h2>Projects</h2>
+    {% if not projects %}
+      <p>No projects yet.</p>
+    {% endif %}
+    {% for p in projects %}
+      <div class="entry">
+        <h3><a href="{{ url_for('project_detail', project_id=p['id']) }}">{{ p['title'] }}</a></h3>
+        <div class="meta">
+          {% if p['status'] == 'submitted' %}<span class="tag tag-pass">SUBMITTED</span>{% else %}<span class="tag tag-neutral">DRAFT</span>
+            {% if open_now %}· <a href="{{ url_for('edit_project', project_id=p['id']) }}">Edit / submit</a>{% endif %}{% endif %}
+        </div>
+      </div>
+    {% endfor %}
+    {% if open_now %}
+      <a class="btn" href="{{ url_for('submit_project') }}">New project</a>
+    {% else %}
+      <p class="meta">Submissions are closed for this event — the server has enforced this regardless of what this page shows.</p>
+    {% endif %}
+  </div>
+{% endif %}
+{% endblock %}

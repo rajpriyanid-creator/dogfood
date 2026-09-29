@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Review {{ project['title'] }} — Verdict Ledger{% endblock %}
+{% block content %}
+<h1>{{ project['title'] }}</h1>
+{% if project['repo_url'] %}<p><a href="{{ project['repo_url'] }}">{{ project['repo_url'] }}</a></p>{% endif %}
+<p>{{ project['summary'] or 'No summary provided' }}</p>
+
+<form class="stack" method="post" action="{{ url_for('judge_review', project_id=project['id']) }}">
+  {% for c in criteria %}
+    <div>
+      <label for="criterion_{{ c['key'] }}">{{ c['label'] }} ({{ c['min_value']|int }}–{{ c['max_value']|int }})</label>
+      <p class="meta">{{ c['description'] }}</p>
+      <input type="number" step="0.5" min="{{ c['min_value'] }}" max="{{ c['max_value'] }}"
+             id="criterion_{{ c['key'] }}" name="criterion_{{ c['key'] }}"
+             value="{{ existing_values.get(c['key'], '') }}" required>
+    </div>
+  {% endfor %}
+  <div>
+    <label for="comment">Comment (optional)</label>
+    <textarea id="comment" name="comment">{{ existing_score['comment'] if existing_score else '' }}</textarea>
+  </div>
+  <button type="submit">{{ 'Update score' if existing_score else 'Submit score' }}</button>
+</form>
+
+<p><a href="{{ url_for('judge_home') }}">Back to my assignments</a></p>
+{% endblock %}
