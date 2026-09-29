@@ -1,14 +1,20 @@
-DOGFOOD 2026 acceptance report
-portal: http://localhost:8080
-claimed: T1 T2
-fixtures: fixtures.json
-
-T1  gallery is public ................. PASS
-T1  project from fixtures shown ....... PASS
-T1  closed event refuses submissions .. PASS
-T2  judge sees own scores ............. PASS
-T2  judge cannot see peer scores ...... PASS
-T2  participant blocked ............... PASS
-T2  csv export works .................. PASS
-
-claimed T1 T2, verified T1 T2
+DOGFOOD 2026 acceptance report
+
+verified_at: 2026-09-29T18:12:32.9060775+05:30
+repository: 8a42b3b
+environment: clean Docker Compose build/startup; healthz healthy
+checker_command: python3 run.py .dogfood.toml
+
+portal: http://localhost:8080
+claimed: T1 T2
+fixtures: fixtures.json
+
+T1  gallery is public ................. PASS
+T1  project from fixtures shown ....... PASS
+T1  closed event refuses submissions .. PASS
+T2  judge sees own scores ............. PASS
+T2  judge cannot see peer scores ...... PASS
+T2  participant blocked ............... PASS
+T2  csv export works .................. PASS
+
+claimed T1 T2, verified T1 T2

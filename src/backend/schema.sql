@@ -88,8 +88,8 @@ CREATE TABLE IF NOT EXISTS teams (
     name        TEXT NOT NULL,
     owner_id    TEXT REFERENCES users(id),
     invite_code TEXT UNIQUE,
-    created_at  TEXT NOT NULL
-    ,UNIQUE (event_id, id)
+    created_at  TEXT NOT NULL,
+    UNIQUE (event_id, id)
 );
 
 CREATE TABLE IF NOT EXISTS team_members (
@@ -123,8 +123,21 @@ CREATE TABLE IF NOT EXISTS projects (
         (status = 'draft' AND submitted_at IS NULL)
     ),
     UNIQUE (id, event_id),
+    UNIQUE (event_id, id),
     FOREIGN KEY (event_id, team_id) REFERENCES teams(event_id, id) ON DELETE CASCADE
 );
+
+-- Compatibility guard for databases created before the composite project/team
+-- foreign key was introduced. The trigger is harmless on fresh databases and
+-- preserves the same invariant for an existing SQLite file without a risky
+-- table rebuild during startup.
+CREATE TRIGGER IF NOT EXISTS trg_projects_same_event_team
+BEFORE INSERT ON projects
+WHEN (SELECT event_id FROM teams WHERE id=NEW.team_id) IS NOT NULL
+ AND (SELECT event_id FROM teams WHERE id=NEW.team_id) != NEW.event_id
+BEGIN
+    SELECT RAISE(ABORT, 'project team belongs to another event');
+END;
 
 -- ---------------------------------------------------------------------
 -- Judges
@@ -279,8 +292,17 @@ CREATE TABLE IF NOT EXISTS project_results (
     raw_score             REAL,
     normalized_score      REAL,
     created_at            TEXT NOT NULL,
-    UNIQUE (project_id, normalization_run_id)
+    UNIQUE (project_id, normalization_run_id),
+    FOREIGN KEY (event_id, project_id) REFERENCES projects(event_id, id) ON DELETE CASCADE
 );
+
+CREATE TRIGGER IF NOT EXISTS trg_project_results_same_event
+BEFORE INSERT ON project_results
+WHEN (SELECT event_id FROM projects WHERE id=NEW.project_id) IS NOT NULL
+ AND (SELECT event_id FROM projects WHERE id=NEW.project_id) != NEW.event_id
+BEGIN
+    SELECT RAISE(ABORT, 'project result belongs to another event');
+END;
 
 -- ---------------------------------------------------------------------
 -- Audit log (append-only)

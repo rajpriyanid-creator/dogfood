@@ -53,7 +53,11 @@ rather than pooling incomparable values. The documented normalization formula
 and algorithm version are unchanged.
 
 Weights must be non-negative and sum to 1.0 across an event's active
-rubric version. The demo weighting used for both seeded events:
+rubric version. The attainable raw-score bounds for a rubric are calculated
+per version as `sum(weight_i * min_i)` and `sum(weight_i * max_i)`, preserving
+each criterion's own range. Normalization compares these weighted bounds for
+compatibility and clips/scales using the resulting interval. The demo weighting
+used for both seeded events:
 
 | Criterion | Weight |
 |---|---|

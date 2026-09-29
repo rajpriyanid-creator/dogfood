@@ -300,12 +300,19 @@ def _validate_track_for_event(db, track_id, event_id):
     return None
 
 
-def _team_for_participant(db, identity):
+def _teams_for_participant(db, identity):
     return db.execute(
         "SELECT t.* FROM teams t JOIN team_members tm ON tm.team_id=t.id "
-        "WHERE tm.user_id=? ORDER BY t.created_at DESC LIMIT 1",
+        "WHERE tm.user_id=? ORDER BY t.event_id, t.id",
         (identity["id"],),
-    ).fetchone()
+    ).fetchall()
+
+
+def _team_for_participant(db, identity, event_id=None):
+    teams = _teams_for_participant(db, identity)
+    if event_id:
+        return next((t for t in teams if t["event_id"] == event_id), None)
+    return teams[0] if len(teams) == 1 else None
 
 
 @app.route("/projects/new", methods=["GET", "POST"])
@@ -320,7 +327,7 @@ def submit_project():
     """
     db = open_db()
     identity = current_identity()
-    team = _team_for_participant(db, identity)
+    team = _team_for_participant(db, identity, request.args.get("event", "").strip())
 
     if request.method == "GET":
         tracks = []
@@ -469,6 +476,12 @@ def submit_draft(project_id):
                      resource=project_id, detail={"reason": "submissions_closed"})
         return error("submissions are closed for this event", 403)
 
+    track_error = _validate_track_for_event(db, project["track_id"], project["event_id"])
+    if track_error or not project["track_id"]:
+        audit.record(db, "project_submitted", "denied", actor=identity,
+                     resource=project_id, detail={"reason": "track_required"})
+        return error("a valid track is required before submitting a project", 400)
+
     db.execute(
         "UPDATE projects SET status='submitted', submitted_at=?, updated_at=? WHERE id=?",
         (now_iso(), now_iso(), project_id),
@@ -497,11 +510,11 @@ def submit_draft(project_id):
 def participant_home():
     db = open_db()
     identity = current_identity()
-    team = db.execute(
-        "SELECT t.* FROM teams t JOIN team_members tm ON tm.team_id=t.id "
-        "WHERE tm.user_id=? ORDER BY t.created_at DESC LIMIT 1",
-        (identity["id"],),
-    ).fetchone()
+    teams = _teams_for_participant(db, identity)
+    selected_event_id = request.args.get("event", "").strip()
+    if not selected_event_id and len(teams) == 1:
+        selected_event_id = teams[0]["event_id"]
+    team = next((t for t in teams if t["event_id"] == selected_event_id), None)
     projects = []
     event = None
     if team:
@@ -514,7 +527,8 @@ def participant_home():
                             event=event, identity=identity,
                             status=event_status(event) if event else None,
                             open_now=submissions_are_open(event) if event else False,
-                            open_events=open_events)
+                            open_events=open_events, teams=teams,
+                            selected_event_id=selected_event_id)
 
 
 @app.route("/team/create", methods=["POST"])
@@ -612,14 +626,31 @@ def join_team():
 def judge_home():
     db = open_db()
     identity = current_identity()
+    event_rows = db.execute(
+        "SELECT DISTINCT e.* FROM events e "
+        "LEFT JOIN assignments a ON a.event_id=e.id AND a.judge_id=? "
+        "LEFT JOIN tracks t ON t.event_id=e.id "
+        "LEFT JOIN judge_track_eligibility jte ON jte.track_id=t.id "
+        "WHERE a.id IS NOT NULL OR jte.user_id=? ORDER BY e.created_at, e.id",
+        (identity["id"], identity["id"]),
+    ).fetchall()
+    selected_event_id = request.args.get("event", "").strip()
+    if not selected_event_id and len(event_rows) == 1:
+        selected_event_id = event_rows[0]["id"]
+    selected_event = next((e for e in event_rows if e["id"] == selected_event_id), None)
+    if selected_event is None:
+        return render_template("judge_home.html", assignments=[], events=event_rows,
+                               selected_event=None, identity=identity)
     assignments = db.execute(
         "SELECT a.*, p.title, p.summary, p.repo_url, p.event_id, "
         "  (SELECT COUNT(*) FROM scores sc WHERE sc.judge_id=a.judge_id AND sc.project_id=a.project_id) AS scored "
         "FROM assignments a JOIN projects p ON p.id = a.project_id "
-        "WHERE a.judge_id=? ORDER BY p.id",
-        (identity["id"],),
+        "WHERE a.judge_id=? AND a.event_id=? ORDER BY p.id",
+        (identity["id"], selected_event_id),
     ).fetchall()
-    return render_template("judge_home.html", assignments=assignments, identity=identity)
+    return render_template("judge_home.html", assignments=assignments,
+                           events=event_rows, selected_event=selected_event,
+                           identity=identity)
 
 
 @app.route("/judge/review/<project_id>", methods=["GET", "POST"])
@@ -823,12 +854,15 @@ def judge_progress(event_id=None):
     if event is None:
         return error("event not found", 404)
     rows = db.execute(
-        "SELECT u.id, u.name, COUNT(a.id) AS assigned, "
-        "  SUM(CASE WHEN sc.id IS NOT NULL THEN 1 ELSE 0 END) AS completed "
-        "FROM users u JOIN assignments a ON a.judge_id=u.id "
-        "LEFT JOIN scores sc ON sc.judge_id=a.judge_id AND sc.project_id=a.project_id "
-        "WHERE u.role='judge' AND a.event_id=? GROUP BY u.id ORDER BY u.id",
-        (event_id,)
+        "SELECT u.id, u.name, COUNT(DISTINCT a.id) AS assigned, "
+        "  COUNT(DISTINCT CASE WHEN sc.id IS NOT NULL THEN a.id END) AS completed "
+        "FROM users u "
+        "JOIN judge_track_eligibility jte ON jte.user_id=u.id "
+        "JOIN tracks t ON t.id=jte.track_id AND t.event_id=? "
+        "LEFT JOIN assignments a ON a.judge_id=u.id AND a.event_id=? "
+        "LEFT JOIN scores sc ON sc.assignment_id=a.id "
+        "WHERE u.role='judge' GROUP BY u.id ORDER BY u.id",
+        (event_id, event_id)
     ).fetchall()
     return render_template("judge_progress.html", rows=rows, events=events,
                            selected_event=event, identity=current_identity())
@@ -914,17 +948,54 @@ def create_event():
         return render_template("create_event.html", identity=identity, error=None)
 
     payload = request.get_json(silent=True) if request.is_json else request.form
-    name = payload.get("name", "").strip()
-    description = payload.get("description", "").strip() or None
-    start_at = payload.get("start_at") or None
-    submissions_close = payload.get("submissions_close")
-    judging_close = payload.get("judging_close") or None
-    track_names = [t.strip() for t in payload.get("tracks", "").split(",") if t.strip()] \
-        if not request.is_json else (payload.get("tracks") or [])
-    prize_names = [p.strip() for p in payload.get("prizes", "").split(",") if p.strip()] \
-        if not request.is_json else (payload.get("prizes") or [])
+    if request.is_json and not isinstance(payload, dict):
+        return error("JSON body must be an object", 400)
 
-    errors = _validate_event_payload(name, start_at, submissions_close, judging_close)
+    def _string_field(key, default=None):
+        value = payload.get(key, default)
+        if value is not None and not isinstance(value, str):
+            errors.append(f"{key} must be a string")
+            return default
+        return value
+
+    errors = []
+    name = _string_field("name", "")
+    description = _string_field("description", "")
+    start_at = _string_field("start_at")
+    submissions_close = _string_field("submissions_close")
+    judging_close = _string_field("judging_close")
+
+    def _list_field(key):
+        if not request.is_json:
+            raw = payload.get(key, "")
+            return [item.strip() for item in raw.split(",") if item.strip()]
+        value = payload.get(key)
+        if value is None:
+            return []
+        if not isinstance(value, list):
+            errors.append(f"{key} must be a list")
+            return []
+        if any(not isinstance(item, str) for item in value):
+            errors.append(f"every {key} entry must be a string")
+            return []
+        values = [item.strip() for item in value]
+        if any(not item for item in values):
+            errors.append(f"{key} entries must not be empty")
+        return [item for item in values if item]
+
+    track_names = _list_field("tracks")
+    prize_names = _list_field("prizes")
+    name = (name or "").strip()
+    if request.is_json:
+        description = (description or "").strip() or None
+        start_at = start_at or None
+        judging_close = judging_close or None
+    else:
+        description = description.strip() or None
+        start_at = start_at or None
+        judging_close = judging_close or None
+
+    errors.extend(_validate_event_payload(name, start_at, submissions_close, judging_close))
     # Reject duplicate track identifiers within the same event up front
     # (audited requirement) - case-sensitive exact-name duplicates here,
     # since the schema's own UNIQUE(event_id, name) is the backstop that
@@ -1163,9 +1234,20 @@ def manage_assignments(event_id):
         ).fetchall()
         team_owner_by_project[p["id"]] = {m["user_id"] for m in members}
 
+    existing_rows = db.execute(
+        "SELECT judge_id, project_id FROM assignments WHERE event_id=?",
+        (event_id,),
+    ).fetchall()
+    existing_pairs = {(r["judge_id"], r["project_id"]) for r in existing_rows}
+    initial_workload = {}
+    for row in existing_rows:
+        initial_workload[row["judge_id"]] = initial_workload.get(row["judge_id"], 0) + 1
+
     pairs = build_assignments(
         [dict(p) for p in projects], judges_by_track, team_owner_by_project,
         target_reviews_per_project=target,
+        initial_workload=initial_workload,
+        existing_pairs=existing_pairs,
     )
     created_pairs = []
     for judge_id, project_id in pairs:
@@ -1256,6 +1338,14 @@ def validate_rubric_criteria(criteria: list) -> list:
         errors.append(f"weights must sum to 1.0 (got {total_weight:.6f})")
 
     return errors
+
+
+def weighted_score_bounds(criteria):
+    """Return the attainable weighted raw-score interval for a rubric."""
+    return (
+        sum(c["weight"] * c["min_value"] for c in criteria),
+        sum(c["weight"] * c["max_value"] for c in criteria),
+    )
 
 
 @app.route("/organizer/events/<event_id>/rubric", methods=["GET", "POST"])
@@ -1576,10 +1666,11 @@ def run_normalization_route(event_id):
             "SELECT key, weight, min_value, max_value FROM rubric_criteria "
             "WHERE rubric_version_id=?", (rv_id,)
         ).fetchall()
+        weighted_lo, weighted_hi = weighted_score_bounds(crit)
         rubric_defs[rv_id] = {
             "weights": {c["key"]: c["weight"] for c in crit},
-            "lo": min(c["min_value"] for c in crit),
-            "hi": max(c["max_value"] for c in crit),
+            "lo": weighted_lo,
+            "hi": weighted_hi,
         }
 
     scales = {(d["lo"], d["hi"]) for d in rubric_defs.values()}

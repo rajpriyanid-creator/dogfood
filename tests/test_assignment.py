@@ -72,6 +72,31 @@ class TestAssignmentEngine(unittest.TestCase):
         pairs_2 = build_assignments(projects, judges_by_track, {}, target_reviews_per_project=2)
         self.assertEqual(pairs_1, pairs_2)
 
+    def test_existing_uneven_workload_prefers_lower_loaded_judge(self):
+        projects = [{"id": "p-new", "track_id": "t1", "team_id": "tm-new"}]
+        judges = {"t1": ["j1", "j2"]}
+        pairs = build_assignments(
+            projects, judges, {}, target_reviews_per_project=1,
+            initial_workload={"j1": 10, "j2": 2},
+        )
+        self.assertEqual(pairs, [("j2", "p-new")])
+
+    def test_existing_pairs_are_not_recreated(self):
+        projects = [{"id": "p1", "track_id": "t1", "team_id": "tm1"}]
+        kwargs = dict(projects=projects, judges_by_track={"t1": ["j1", "j2"]},
+                      team_owner_by_project={}, target_reviews_per_project=1,
+                      initial_workload={"j1": 1}, existing_pairs={("j1", "p1")})
+        self.assertEqual(build_assignments(**kwargs), [])
+
+    def test_workload_is_supplied_per_event(self):
+        project = [{"id": "p-event-b", "track_id": "t1", "team_id": "tm-b"}]
+        judges = {"t1": ["j1", "j2"]}
+        self.assertEqual(
+            build_assignments(project, judges, {}, target_reviews_per_project=1,
+                              initial_workload={"j1": 9}),
+            [("j2", "p-event-b")],
+        )
+
 
 class TestAssignmentEventIntegrity(VerdictLedgerTestCase):
     def test_assignment_cannot_cross_events(self):
@@ -94,6 +119,18 @@ class TestAssignmentEventIntegrity(VerdictLedgerTestCase):
                 "VALUES ('asg_cross', 'evt_b', 'jdg_b', 'prj_a', '2026-01-01T00:00:00Z')"
             )
             conn.commit()
+
+    def test_project_result_cannot_cross_events(self):
+        import db as db_module
+        import sqlite3
+        conn = db_module.get_connection()
+        with self.assertRaises(sqlite3.IntegrityError):
+            conn.execute(
+                "INSERT INTO project_results (id,event_id,project_id,review_count,created_at) "
+                "VALUES ('result_cross','evt_live_2026','prj_01',1,'2026-01-01T00:00:00Z')"
+            )
+            conn.commit()
+        conn.close()
 
 
 if __name__ == "__main__":

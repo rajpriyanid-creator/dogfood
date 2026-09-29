@@ -147,6 +147,8 @@ reads this table, not the live `scores` table, so editing a score after a
 run cannot change what that run is reported to have done.
 
 ### `project_results`
+The `(event_id, project_id)` composite foreign key prevents a result from
+pointing at a project in another event.
 `rubric_version_id` is populated only when every review for the project used
 one rubric version. For a mixed-rubric aggregate it is NULL; no arbitrary
 version is selected.

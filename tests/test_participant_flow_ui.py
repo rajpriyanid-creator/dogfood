@@ -35,9 +35,20 @@ class TestParticipantBrowserFlow(VerdictLedgerTestCase):
         conn.close()
         return token
 
+    def _live_track(self):
+        import db as db_module
+        conn = db_module.get_connection()
+        track = conn.execute("SELECT id FROM tracks WHERE event_id='evt_live_2026' LIMIT 1").fetchone()["id"]
+        conn.close()
+        return track
+
     def _create_draft_via_form(self, token, title="Browser Draft"):
+        import db as db_module
+        conn = db_module.get_connection()
+        track = conn.execute("SELECT id FROM tracks WHERE event_id='evt_live_2026' LIMIT 1").fetchone()["id"]
+        conn.close()
         resp = self.client.post("/projects/new",
-                                data={"title": title, "summary": "first"},
+                                data={"title": title, "summary": "first", "track_id": track},
                                 headers=self.auth_header(token))
         self.assertEqual(resp.status_code, 302)
         m = re.search(r"/projects/(prj_[0-9a-f]+)", resp.headers["Location"])
@@ -82,7 +93,8 @@ class TestParticipantBrowserFlow(VerdictLedgerTestCase):
         pid = self._create_draft_via_form(token, title="v1")
 
         edit = self.client.post(f"/projects/{pid}/edit",
-                                data={"title": "v2", "summary": "edited", "repo_url": "https://example.org/r"},
+                                data={"title": "v2", "summary": "edited", "repo_url": "https://example.org/r",
+                                      "track_id": self._live_track()},
                                 headers=self.auth_header(token))
         self.assertEqual(edit.status_code, 302)
 

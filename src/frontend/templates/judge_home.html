@@ -2,6 +2,14 @@
 {% block title %}My assignments — Verdict Ledger{% endblock %}
 {% block content %}
 <h1>My assignments</h1>
+{% if events|length > 1 or not selected_event %}
+  <p>Select an event to view its assignments.</p>
+  <ul>
+    {% for e in events %}<li><a href="{{ url_for('judge_home', event=e['id']) }}">{{ e['name'] }}</a></li>{% endfor %}
+  </ul>
+{% endif %}
+{% if selected_event %}
+<p>Event: <strong>{{ selected_event['name'] }}</strong>.</p>
 <p>Only projects assigned to you appear here. You will never see another judge's scores — the backend enforces that on every score-reading request, not just on this page.</p>
 
 <table class="ledger">
@@ -20,4 +28,5 @@
     {% endfor %}
   </tbody>
 </table>
+{% endif %}
 {% endblock %}

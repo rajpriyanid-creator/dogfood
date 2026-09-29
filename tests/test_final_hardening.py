@@ -19,8 +19,9 @@ class TestFinalHardening(VerdictLedgerTestCase):
         )
         self.assertEqual(response.status_code, 400)
 
-    def test_participant_home_offers_open_events_without_fixed_template_id(self):
+    def test_participant_home_renders_dynamically_created_open_event(self):
         import auth
+        from datetime import datetime, timedelta, timezone
         conn = self._db()
         conn.execute(
             "INSERT INTO users (id,email,name,role,password_hash,created_at) "
@@ -30,11 +31,26 @@ class TestFinalHardening(VerdictLedgerTestCase):
         token = auth.create_session(conn, "participant_freeze_probe")
         conn.commit()
         conn.close()
+        now = datetime.now(timezone.utc)
+        created = self.client.post(
+            "/organizer/events/new",
+            json={
+                "name": "Dynamic Audit Event",
+                "start_at": (now - timedelta(minutes=1)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "submissions_close": (now + timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "tracks": ["Dynamic Track"],
+                "prizes": [],
+            },
+            headers=self.api_header(self.ORGANIZER),
+        )
+        self.assertEqual(created.status_code, 201)
+        dynamic_event_id = created.get_json()["id"]
         page = self.client.get("/team", headers=self.auth_header(token))
         self.assertEqual(page.status_code, 200)
         body = page.get_data(as_text=True)
         self.assertIn('name="event_id"', body)
-        self.assertIn('value="evt_live_2026"', body)
+        self.assertIn(f'value="{dynamic_event_id}"', body)
+        self.assertIn("Dynamic Audit Event", body)
 
     def test_gallery_order_is_id_deterministic(self):
         page = self.client.get("/projects")
@@ -132,8 +148,9 @@ class TestFinalHardening(VerdictLedgerTestCase):
         self.assertEqual(response.status_code, 201)
         conn = self._db()
         result = conn.execute(
-            "SELECT rubric_version_id FROM project_results WHERE project_id='prj_01' "
-            "ORDER BY created_at DESC LIMIT 1"
+            "SELECT r.rubric_version_id FROM project_results r "
+            "JOIN normalization_runs n ON n.id=r.normalization_run_id "
+            "WHERE r.project_id='prj_01' ORDER BY n.version DESC LIMIT 1"
         ).fetchone()
         conn.close()
         self.assertIsNone(result["rubric_version_id"])
@@ -161,6 +178,85 @@ class TestFinalHardening(VerdictLedgerTestCase):
         self.assertIsNone(validate(""))
         self.assertIsNotNone(validate("https:///missing-host"))
         self.assertIsNotNone(validate("ftp://example.org/repo"))
+
+    def test_weighted_rubric_bounds_use_each_criterion_weight(self):
+        bounds = self.app_module.weighted_score_bounds
+        criteria = [
+            {"weight": 0.5, "min_value": 1, "max_value": 5},
+            {"weight": 0.5, "min_value": 0, "max_value": 10},
+        ]
+        self.assertEqual(bounds(criteria), (0.5, 7.5))
+        self.assertEqual(bounds(list(reversed(criteria))), (0.5, 7.5))
+
+    def test_submission_without_track_is_rejected_but_draft_is_allowed(self):
+        import auth
+        conn = self._db()
+        user = conn.execute(
+            "SELECT user_id FROM team_members WHERE team_id='live_tm_1' LIMIT 1"
+        ).fetchone()["user_id"]
+        token = auth.create_session(conn, user)
+        conn.close()
+        created = self.client.post("/projects/new", json={"title": "Track required draft"},
+                                   headers=self.auth_header(token))
+        self.assertEqual(created.status_code, 201)
+        project_id = created.get_json()["id"]
+        submitted = self.client.post(f"/projects/{project_id}/submit",
+                                     headers=self.api_header(token))
+        self.assertEqual(submitted.status_code, 400)
+
+    def test_event_creation_rejects_malformed_json_lists(self):
+        from datetime import datetime, timedelta, timezone
+        now = datetime.now(timezone.utc)
+        base = {
+            "name": "Payload Validation Event",
+            "start_at": (now - timedelta(minutes=1)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "submissions_close": (now + timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        }
+        for field, value in (("tracks", "not-a-list"), ("tracks", {}),
+                             ("prizes", "not-a-list"), ("prizes", {}),
+                             ("tracks", ["ok", 3])):
+            payload = {**base, field: value}
+            response = self.client.post("/organizer/events/new", json=payload,
+                                        headers=self.api_header(self.ORGANIZER))
+            self.assertEqual(response.status_code, 400, (field, value))
+        valid = self.client.post("/organizer/events/new", json={**base, "tracks": [" Web "], "prizes": [" Prize "]},
+                                 headers=self.api_header(self.ORGANIZER))
+        self.assertEqual(valid.status_code, 201)
+
+    def test_zero_assignment_eligible_judge_appears_in_progress(self):
+        conn = self._db()
+        live_track = conn.execute("SELECT id FROM tracks WHERE event_id='evt_live_2026' LIMIT 1").fetchone()["id"]
+        conn.close()
+        response = self.client.post(
+            "/organizer/events/evt_live_2026/judges",
+            json={"name": "Unassigned Judge", "email": "unassigned@example.org",
+                  "track_ids": [live_track]},
+            headers=self.api_header(self.ORGANIZER),
+        )
+        self.assertEqual(response.status_code, 201)
+        judge_id = response.get_json()["id"]
+        page = self.client.get("/judge/progress/evt_live_2026", headers=self.auth_header(self.ORGANIZER))
+        body = page.get_data(as_text=True)
+        self.assertIn(judge_id, body)
+        row_start = body.index(judge_id)
+        self.assertIn(">0<", body[row_start:row_start + 250])
+
+    def test_judge_home_requires_event_context_when_judge_has_multiple_events(self):
+        import auth
+        conn = self._db()
+        conn.execute("INSERT INTO events (id,name,kind,submissions_close,publish_state,created_at) VALUES ('evt_judge_b','Judge B','live','2099-01-01T00:00:00Z','draft',?)", (auth.now_iso(),))
+        conn.execute("INSERT INTO tracks (id,event_id,name) VALUES ('trk_judge_b','evt_judge_b','Track B')")
+        conn.execute("INSERT INTO judge_track_eligibility (user_id,track_id) VALUES ('jdg_01','trk_judge_b')")
+        conn.execute("INSERT INTO teams (id,event_id,name,created_at) VALUES ('tm_judge_b','evt_judge_b','Team B',?)", (auth.now_iso(),))
+        conn.execute("INSERT INTO projects (id,event_id,team_id,track_id,title,status,submitted_at,created_at,updated_at) VALUES ('prj_judge_b','evt_judge_b','tm_judge_b','trk_judge_b','Judge B Project','submitted',?,?,?)", (auth.now_iso(), auth.now_iso(), auth.now_iso()))
+        conn.execute("INSERT INTO assignments (id,event_id,judge_id,project_id,created_at) VALUES ('asg_judge_b','evt_judge_b','jdg_01','prj_judge_b',?)", (auth.now_iso(),))
+        conn.commit()
+        token = auth.create_session(conn, "jdg_01")
+        conn.close()
+        page = self.client.get("/judge", headers=self.auth_header(token))
+        body = page.get_data(as_text=True)
+        self.assertIn("Judge B", body)
+        self.assertNotIn("Glass Signal", body)
 
     def test_project_team_event_integrity_is_enforced(self):
         import sqlite3

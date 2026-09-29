@@ -154,7 +154,8 @@ gets the same output, by construction.
 ## Result engine
 
 A `project_results` row retains raw score, normalized score, review count,
-which rubric version and which normalization run produced it. Nothing is
+which single rubric version (or NULL for a mixed-rubric aggregate) and which
+normalization run produced it. Nothing is
 overwritten in place — a new normalization run creates new result rows
 rather than mutating old ones, so a previously published result stays
 inspectable even after the event's scores or rubric change later.
@@ -281,7 +282,7 @@ UPCOMING -> OPEN -> SUBMISSIONS_CLOSED -> JUDGING -> PUBLISHED   (ARCHIVED: stic
 |---|---|
 | create/edit/submit project, create/join team | OPEN |
 | score a project | SUBMISSIONS_CLOSED or JUDGING |
-| run normalization | SUBMISSIONS_CLOSED, JUDGING, or PUBLISHED |
+| run normalization | SUBMISSIONS_CLOSED, JUDGING |
 | publish | past OPEN, and a normalization run exists |
 
 PUBLISHED and ARCHIVED come from `publish_state`, not from dates. An event
