@@ -136,16 +136,11 @@ is minted on every login, so there is no session-fixation path.
 
 ## Brute force & rate limiting
 
-**NOT IMPLEMENTED.**
+**Threat.** Repeated password guessing against `/login` or invite-code guessing against `/team/join`, and abuse of judge provisioning via `/organizer/events/<id>/judges`.
 
-**Threat.** Repeated password guessing against `/login` or invite-code
-guessing against `/team/join`.
+**Mitigation.** An in-memory, process-local rate limiter tracks request counts by IP address (or session/invite code) over short windows (e.g., per minute). When the threshold is exceeded, the server returns HTTP 429 Too Many Requests along with a `Retry-After` header. This natively mitigates basic brute-forcing without requiring external infrastructure like Redis.
 
-**Mitigation.** None built in. This is a deliberate scope limitation for this
-offline, self-hostable build. Since it requires no Redis or external
-state-store, a production deployment should enforce rate limiting (e.g., 5
-failed attempts per IP per 60 seconds) at the reverse-proxy layer (e.g.,
-Nginx or Traefik) rather than in the application layer.
+**Residual limitations.** The rate limiting is process-local and kept entirely in memory. It resets when the application restarts, and if running multiple worker processes (e.g., gunicorn with multiple workers), the limits are not shared across them.
 
 ## Password reset
 

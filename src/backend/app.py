@@ -1524,7 +1524,7 @@ def run_normalization_route(event_id):
                      f"(event status: {event_status(event)})", 409)
 
     score_rows = db.execute(
-        "SELECT s.id AS score_id, s.judge_id, s.project_id, s.rubric_version_id "
+        "SELECT s.id AS score_id, s.judge_id, s.project_id, s.rubric_version_id, s.comment "
         "FROM scores s JOIN projects p ON p.id = s.project_id "
         "WHERE p.event_id=? ORDER BY s.id", (event_id,),
     ).fetchall()
@@ -1572,6 +1572,7 @@ def run_normalization_route(event_id):
             "score_id": r["score_id"], "judge_id": r["judge_id"],
             "project_id": r["project_id"], "criteria": values,
             "rubric_version_id": r["rubric_version_id"],
+            "comment": r["comment"]
         })
 
     # weighted_raw_score() takes one weights dict; reviews under
@@ -1612,8 +1613,8 @@ def run_normalization_route(event_id):
         for r in enriched:
             db.execute(
                 "INSERT INTO review_normalizations (normalization_run_id, score_id, "
-                "raw_weighted, z_score, normalized_value) VALUES (?, ?, ?, ?, ?)",
-                (run_id, r["score_id"], r["raw"], r["z"], r["normalized"]),
+                "raw_weighted, z_score, normalized_value, comment) VALUES (?, ?, ?, ?, ?, ?)",
+                (run_id, r["score_id"], r["raw"], r["z"], r["normalized"], r.get("comment")),
             )
 
         # Snapshot the exact criterion values used in this run so that
@@ -1698,7 +1699,8 @@ def explain_result(event_id, project_id):
     # after the run must not change what this page says the run did.
     reviews = db.execute(
         "SELECT s.*, u.name AS judge_name, rn.raw_weighted AS run_raw, "
-        "       rn.z_score AS run_z, rn.normalized_value AS run_normalized "
+        "       rn.z_score AS run_z, rn.normalized_value AS run_normalized, "
+        "       rn.comment AS run_comment "
         "FROM review_normalizations rn "
         "JOIN scores s ON s.id = rn.score_id "
         "JOIN users u ON u.id = s.judge_id "
@@ -1724,7 +1726,7 @@ def explain_result(event_id, project_id):
         judge_breakdown.append({
             "judge_name": r["judge_name"], "judge_id": r["judge_id"],
             "raw": r["run_raw"], "z": r["run_z"], "normalized": r["run_normalized"],
-            "comment": r["comment"] or "No comment provided",
+            "comment": r["run_comment"] or "No comment provided",
             "criteria": {c["criterion_key"]: c["value"] for c in crit},
             "n": jstats["n"] if jstats else None,
             "judge_mean": jstats["mean"] if jstats else None,

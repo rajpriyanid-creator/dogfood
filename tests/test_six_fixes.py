@@ -42,6 +42,8 @@ class TestSixFixes(VerdictLedgerTestCase):
         # 1. Create a dummy event and project
         event_id = "evt_norubric"
         conn.execute("INSERT INTO events (id, name, kind, start_at, submissions_close, judging_close, publish_state, created_by, created_at) VALUES (?, 'No Rubric', 'live', '2026-01-01T00:00:00Z', '2026-02-01T00:00:00Z', '2026-03-01T00:00:00Z', 'draft', ?, '2026-01-01T00:00:00Z')", (event_id, org_id))
+        conn.execute("INSERT INTO teams (id, event_id, name, created_at) VALUES ('tm_nr', ?, 'Team NR', '2026-01-01T00:00:00Z')", (event_id,))
+        conn.execute("INSERT INTO tracks (id, event_id, name) VALUES ('trk_nr', ?, 'Track NR')", (event_id,))
         conn.execute("INSERT INTO projects (id, event_id, team_id, track_id, title, summary, repo_url, status, submitted_at, created_at, updated_at) VALUES ('prj_nr', ?, 'tm_nr', 'trk_nr', 'NR', 'NR', 'http://repo', 'submitted', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')", (event_id,))
         conn.execute("INSERT INTO assignments (id, event_id, judge_id, project_id, version, created_at) VALUES ('asg_nr', ?, 'jdg_01', 'prj_nr', 1, '2026-02-02T00:00:00Z')", (event_id,))
         conn.commit()

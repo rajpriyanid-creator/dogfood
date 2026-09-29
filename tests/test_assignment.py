@@ -73,5 +73,28 @@ class TestAssignmentEngine(unittest.TestCase):
         self.assertEqual(pairs_1, pairs_2)
 
 
+class TestAssignmentEventIntegrity(VerdictLedgerTestCase):
+    def test_assignment_cannot_cross_events(self):
+        import db as db_module
+        import sqlite3
+        conn = db_module.get_connection()
+        # Insert a dummy event, team, and project
+        conn.execute("INSERT INTO events (id, name, kind, submissions_close, publish_state, created_at) VALUES ('evt_a', 'Event A', 'live', '2099-01-01T00:00:00Z', 'draft', '2026-01-01T00:00:00Z')")
+        conn.execute("INSERT INTO teams (id, event_id, name, created_at) VALUES ('tm_a', 'evt_a', 'Team A', '2026-01-01T00:00:00Z')")
+        conn.execute("INSERT INTO projects (id, event_id, team_id, title, status, created_at, updated_at) VALUES ('prj_a', 'evt_a', 'tm_a', 'Project A', 'draft', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')")
+        
+        # Insert another event and a judge
+        conn.execute("INSERT INTO events (id, name, kind, submissions_close, publish_state, created_at) VALUES ('evt_b', 'Event B', 'live', '2099-01-01T00:00:00Z', 'draft', '2026-01-01T00:00:00Z')")
+        conn.execute("INSERT INTO users (id, email, name, role, password_hash, created_at) VALUES ('jdg_b', 'jdg@b', 'Judge', 'judge', 'hash', '2026-01-01T00:00:00Z')")
+
+        # Attempt to assign the project from evt_a to an assignment in evt_b
+        with self.assertRaises(sqlite3.IntegrityError):
+            conn.execute(
+                "INSERT INTO assignments (id, event_id, judge_id, project_id, created_at) "
+                "VALUES ('asg_cross', 'evt_b', 'jdg_b', 'prj_a', '2026-01-01T00:00:00Z')"
+            )
+            conn.commit()
+
+
 if __name__ == "__main__":
     unittest.main()

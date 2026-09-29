@@ -120,7 +120,8 @@ CREATE TABLE IF NOT EXISTS projects (
     CHECK (
         (status = 'submitted' AND submitted_at IS NOT NULL) OR
         (status = 'draft' AND submitted_at IS NULL)
-    )
+    ),
+    UNIQUE (id, event_id)
 );
 
 -- ---------------------------------------------------------------------
@@ -137,10 +138,11 @@ CREATE TABLE IF NOT EXISTS assignments (
     id         TEXT PRIMARY KEY,
     event_id   TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
     judge_id   TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL,
     version    INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL,
-    UNIQUE (judge_id, project_id)
+    UNIQUE (judge_id, project_id),
+    FOREIGN KEY (project_id, event_id) REFERENCES projects(id, event_id) ON DELETE CASCADE
 );
 
 -- ---------------------------------------------------------------------
@@ -247,6 +249,7 @@ CREATE TABLE IF NOT EXISTS review_normalizations (
     raw_weighted          REAL NOT NULL,
     z_score               REAL,
     normalized_value      REAL NOT NULL,
+    comment               TEXT,
     PRIMARY KEY (normalization_run_id, score_id)
 );
 

@@ -195,7 +195,7 @@ Five targeted hardening fixes were implemented and regression-tested
 - **The audit log is tamper-evident, not tamper-proof.** See SECURITY.md.
 - **Plain HTTP only, no TLS.** Put it behind a TLS-terminating proxy for
   any real deployment.
-- **No rate limiting** on login or invite-code guessing.
+- **In-memory rate limiting** is applied to login, team-join, and judge-invite requests to prevent brute-force guessing and abuse (process-local).
 - **Judge "invitation" means direct provisioning.** There is no email
   service offline, so an organizer creates the judge account; the judge gets
   a random password an organizer must reset by other means. There is no
