@@ -32,6 +32,12 @@ Create Event → Create Team → Submit Project → Assign Judge → Private Jud
 | **T3** | NOT CLAIMED |
 | **T4** | NOT CLAIMED |
 
+This project strictly targets the T1 and T2 requirements. T3 (voting/comments) and T4 (REST API/certificates) are explicitly out of scope.
+
+Additionally, this project uses a **two-event model** for demonstration:
+- `evt_01` (DOGFOOD fixture): Kept closed to preserve the historical data and pass acceptance checks.
+- `evt_live_2026`: A live demo event for exploring the platform.
+
 ## Quick start
 
 ```bash

@@ -208,6 +208,7 @@ CREATE TABLE IF NOT EXISTS normalization_runs (
     id                       TEXT PRIMARY KEY,
     event_id                 TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
     version                  INTEGER NOT NULL,
+    algorithm_version        TEXT NOT NULL DEFAULT 'location-scale-shrinkage-v1',
     k_param                  REAL NOT NULL DEFAULT 3,
     global_mean              REAL,
     global_var               REAL,

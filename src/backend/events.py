@@ -33,7 +33,10 @@ def parse_iso(ts: str):
     if ts is None:
         return None
     ts = ts.replace("Z", "+00:00")
-    return datetime.fromisoformat(ts)
+    dt = datetime.fromisoformat(ts)
+    if dt.tzinfo is None:
+        raise ValueError("Timestamp must include a timezone offset (e.g. Z or +00:00)")
+    return dt
 
 
 def event_status(event_row) -> str:
@@ -94,3 +97,8 @@ def can_run_normalization(event_row) -> bool:
     but not while the event is still open for new submissions or before
     it has started."""
     return event_status(event_row) in (SUBMISSIONS_CLOSED, JUDGING, PUBLISHED)
+
+def configuration_is_frozen(event_row) -> bool:
+    """Tracks, prizes, judges, rubric, and assignments cannot be modified
+    once judging starts."""
+    return event_status(event_row) in (JUDGING, PUBLISHED, ARCHIVED)

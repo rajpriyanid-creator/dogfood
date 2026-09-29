@@ -83,7 +83,10 @@ class TestNormalizationRoute(VerdictLedgerTestCase):
         before = {r["score_id"]: r["raw_weighted"] for r in conn.execute(
             "SELECT score_id, raw_weighted FROM review_normalizations "
             "WHERE normalization_run_id=?", (baseline,)).fetchall()}
-        conn.close()
+            
+        # Bypass the configuration freeze by temporarily making the event OPEN
+        conn.execute("UPDATE events SET submissions_close='2099-01-01T00:00:00Z', judging_close='2099-01-01T00:00:00Z', publish_state='draft' WHERE id='evt_01'")
+        conn.commit()
 
         # Publish rubric v2 on evt_01 with same criteria but very
         # different weights and the SAME 1..5 range.
@@ -96,6 +99,11 @@ class TestNormalizationRoute(VerdictLedgerTestCase):
             ]},
             headers=self.auth_header(self.ORGANIZER))
         self.assertEqual(resp.status_code, 201)
+
+        # Restore SUBMISSIONS_CLOSED / JUDGING / PUBLISHED
+        conn.execute("UPDATE events SET submissions_close='2020-01-01T00:00:00Z', judging_close='2020-01-01T00:00:00Z', publish_state='published' WHERE id='evt_01'")
+        conn.commit()
+        conn.close()
 
         second = self._run().get_json()["run_id"]
         conn = db_module.get_connection()

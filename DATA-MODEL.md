@@ -118,8 +118,9 @@ values behind a score's weighted total — never discarded, so the full
 input to any past calculation stays inspectable.
 
 ### `normalization_runs`
-`id, event_id, version, k_param, global_mean, global_var, score_lo,
+`id, event_id, version, algorithm_version, k_param, global_mean, global_var, score_lo,
 score_hi, judging_state_fingerprint, created_at, created_by`.
+`algorithm_version` tracks the exact algorithm used (e.g. `location-scale-shrinkage-v1`).
 `score_lo/score_hi` record the rubric score range the run used for clipping.
 `judging_state_fingerprint` is a SHA-256 hash of the canonical judging state
 (all scores, criteria, and rubric weights) at the time the run was created.

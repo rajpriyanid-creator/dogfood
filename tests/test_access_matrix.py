@@ -16,6 +16,7 @@ ORG = {"organizer", "admin"}
 ANY_AUTH = {"participant", "judge", "organizer", "admin"}
 
 POLICY = {
+    ("GET", "/"): PUBLIC,
     ("GET", "/healthz"): PUBLIC,
     ("GET", "/projects"): PUBLIC,
     ("GET", "/projects/<project_id>"): PUBLIC,

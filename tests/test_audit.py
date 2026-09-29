@@ -73,6 +73,60 @@ class TestAuditChain(VerdictLedgerTestCase):
         self.assertFalse(audit_module.verify_chain(conn))
         conn.close()
 
+    def test_tamper_action(self):
+        import audit as audit_module
+        import db as db_module
+        conn = db_module.get_connection()
+        audit_module.record(conn, "event_created", "ok", resource="ev1")
+        conn.execute("UPDATE audit_events SET action = 'tampered'")
+        conn.commit()
+        self.assertFalse(audit_module.verify_chain(conn))
+        conn.close()
+
+    def test_tamper_detail(self):
+        import audit as audit_module
+        import db as db_module
+        import json
+        conn = db_module.get_connection()
+        audit_module.record(conn, "event_created", "ok", resource="ev1", detail={"k": "v"})
+        conn.execute("UPDATE audit_events SET detail = ?", (json.dumps({"k": "v2"}),))
+        conn.commit()
+        self.assertFalse(audit_module.verify_chain(conn))
+        conn.close()
+
+    def test_tamper_prev_hash(self):
+        import audit as audit_module
+        import db as db_module
+        conn = db_module.get_connection()
+        audit_module.record(conn, "event_created", "ok", resource="ev1")
+        audit_module.record(conn, "event_created", "ok", resource="ev2")
+        conn.execute("UPDATE audit_events SET prev_hash = 'tampered' WHERE resource = 'ev2'")
+        conn.commit()
+        self.assertFalse(audit_module.verify_chain(conn))
+        conn.close()
+
+    def test_tamper_hash(self):
+        import audit as audit_module
+        import db as db_module
+        conn = db_module.get_connection()
+        audit_module.record(conn, "event_created", "ok", resource="ev1")
+        conn.execute("UPDATE audit_events SET hash = 'tampered'")
+        conn.commit()
+        self.assertFalse(audit_module.verify_chain(conn))
+        conn.close()
+
+    def test_delete_middle_record(self):
+        import audit as audit_module
+        import db as db_module
+        conn = db_module.get_connection()
+        audit_module.record(conn, "event_created", "ok", resource="ev1")
+        audit_module.record(conn, "event_created", "ok", resource="ev2")
+        audit_module.record(conn, "event_created", "ok", resource="ev3")
+        conn.execute("DELETE FROM audit_events WHERE resource = 'ev2'")
+        conn.commit()
+        self.assertFalse(audit_module.verify_chain(conn))
+        conn.close()
+
     def test_chain_survives_many_records_in_sequence(self):
         """The original bug manifested specifically 'after the second
         record' per the audit - this exercises well past that count."""

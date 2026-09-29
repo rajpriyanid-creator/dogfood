@@ -26,7 +26,7 @@ from core import close_db, current_identity, error, open_db, require_auth, requi
 from db import get_connection, init_schema, is_seeded
 from events import (
     event_status, submissions_are_open, scoring_is_open, can_run_normalization,
-    parse_iso,
+    parse_iso, configuration_is_frozen
 )
 from assignment import build_assignments
 from normalization import run_normalization
@@ -51,12 +51,44 @@ def ensure_seeded():
         conn.close()
 
 
+import time
+
+# ---------------------------------------------------------------------
+# Rate Limiting
+# ---------------------------------------------------------------------
+
+_rate_limits = {}
+
+def check_rate_limit(action_key, max_requests=5, window_seconds=60):
+    now = time.time()
+    # cleanup occasionally
+    if len(_rate_limits) > 1000:
+        for k in list(_rate_limits.keys()):
+            if _rate_limits.get(k, {}).get("expires", 0) < now:
+                _rate_limits.pop(k, None)
+                
+    entry = _rate_limits.get(action_key)
+    if not entry or entry["expires"] < now:
+        _rate_limits[action_key] = {"count": 1, "expires": now + window_seconds}
+        return True, 0
+        
+    if entry["count"] >= max_requests:
+        return False, int(entry["expires"] - now)
+        
+    entry["count"] += 1
+    return True, 0
+
 # ---------------------------------------------------------------------
 # Auth
 # ---------------------------------------------------------------------
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
+    if request.method == "POST":
+        allowed, retry_after = check_rate_limit(f"login:{request.remote_addr}", max_requests=10)
+        if not allowed:
+            return error("too many attempts", 429, headers={"Retry-After": str(retry_after)})
+
     if request.method == "GET":
         return render_template("login.html", error=None)
     email = request.form.get("email", "").strip().lower()
@@ -100,6 +132,10 @@ def dashboard():
 # ---------------------------------------------------------------------
 # Public gallery  (T1 — no auth required)
 # ---------------------------------------------------------------------
+
+@app.route("/")
+def index():
+    return redirect(url_for("gallery"))
 
 @app.route("/projects")
 def gallery():
@@ -520,6 +556,10 @@ def create_team():
 @app.route("/team/join", methods=["POST"])
 @require_role("participant")
 def join_team():
+    allowed, retry_after = check_rate_limit(f"join:{request.remote_addr}", max_requests=10)
+    if not allowed:
+        return error("too many attempts", 429, headers={"Retry-After": str(retry_after)})
+
     db = open_db()
     identity = current_identity()
     invite_code = request.form.get("invite_code", "").strip()
@@ -620,6 +660,10 @@ def judge_review(project_id):
             "SELECT * FROM rubric_versions WHERE event_id=? ORDER BY version DESC LIMIT 1",
             (project["event_id"],),
         ).fetchone()
+
+    if not rubric_version:
+        return error("this event has no rubric configured", 409)
+
     criteria = db.execute(
         "SELECT * FROM rubric_criteria WHERE rubric_version_id=?", (rubric_version["id"],)
     ).fetchall()
@@ -908,6 +952,8 @@ def add_track(event_id):
     event = db.execute("SELECT * FROM events WHERE id=?", (event_id,)).fetchone()
     if not event:
         return error("event not found", 404)
+    if configuration_is_frozen(event):
+        return error("event configuration is frozen once judging starts", 403)
 
     name = (request.get_json(silent=True) or {}).get("name", "").strip() if request.is_json \
         else request.form.get("name", "").strip()
@@ -936,6 +982,8 @@ def add_prize(event_id):
     event = db.execute("SELECT * FROM events WHERE id=?", (event_id,)).fetchone()
     if not event:
         return error("event not found", 404)
+    if configuration_is_frozen(event):
+        return error("event configuration is frozen once judging starts", 403)
 
     payload = request.get_json(silent=True) if request.is_json else request.form
     name = payload.get("name", "").strip()
@@ -970,7 +1018,9 @@ def manage_judges(event_id):
             "SELECT u.id, u.name, u.email, "
             "  GROUP_CONCAT(jte.track_id) AS track_ids "
             "FROM users u LEFT JOIN judge_track_eligibility jte ON jte.user_id=u.id "
-            "WHERE u.role='judge' GROUP BY u.id ORDER BY u.id"
+            "  AND jte.track_id IN (SELECT id FROM tracks WHERE event_id=?) "
+            "WHERE u.role='judge' GROUP BY u.id ORDER BY u.id",
+            (event_id,)
         ).fetchall()
         tracks = db.execute("SELECT id, name FROM tracks WHERE event_id=?", (event_id,)).fetchall()
         return render_template("manage_judges.html", judges=judges, tracks=tracks,
@@ -982,6 +1032,14 @@ def manage_judges(event_id):
     # external email service to send a real invite through) - this is a
     # deliberate design choice, documented in ARCHITECTURE.md, not a
     # stand-in for a missing email integration.
+    if configuration_is_frozen(event):
+        return error("event configuration is frozen once judging starts", 403)
+
+    if request.method == "POST":
+        allowed, retry_after = check_rate_limit(f"invite:{request.remote_addr}", max_requests=10)
+        if not allowed:
+            return error("too many attempts", 429, headers={"Retry-After": str(retry_after)})
+
     payload = request.get_json(silent=True) if request.is_json else request.form
     name = payload.get("name", "").strip()
     email = payload.get("email", "").strip().lower()
@@ -1048,8 +1106,16 @@ def manage_assignments(event_id):
         return render_template("manage_assignments.html", rows=rows, event=event,
                                 identity=identity)
 
-    target = int((request.get_json(silent=True) or {}).get("target_reviews", 3)) \
-        if request.is_json else int(request.form.get("target_reviews", 3))
+    if configuration_is_frozen(event):
+        return error("event configuration is frozen once judging starts", 403)
+
+    try:
+        raw_target = (request.get_json(silent=True) or {}).get("target_reviews", 3) if request.is_json else request.form.get("target_reviews", 3)
+        target = int(raw_target)
+        if target < 1 or target > 50:
+            raise ValueError()
+    except (ValueError, TypeError):
+        return error("target_reviews must be an integer between 1 and 50", 400)
 
     projects = db.execute(
         "SELECT id, track_id, team_id FROM projects WHERE event_id=? AND status='submitted'",
@@ -1179,6 +1245,9 @@ def rubric_builder(event_id):
             ).fetchall()
         return render_template("rubric_builder.html", event=event, current=current,
                                 criteria=criteria, identity=identity, error=None)
+
+    if configuration_is_frozen(event):
+        return error("event configuration is frozen once judging starts", 403)
 
     payload = request.get_json(silent=True) if request.is_json else None
     if payload is None:
@@ -1525,11 +1594,11 @@ def run_normalization_route(event_id):
 
     try:
         db.execute(
-            "INSERT INTO normalization_runs (id, event_id, version, k_param, "
+            "INSERT INTO normalization_runs (id, event_id, version, algorithm_version, k_param, "
             "global_mean, global_var, score_lo, score_hi, "
             "judging_state_fingerprint, created_at, created_by) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (run_id, event_id, version, global_stats.k, global_stats.mean,
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (run_id, event_id, version, "location-scale-shrinkage-v1", global_stats.k, global_stats.mean,
              global_stats.variance, lo, hi, current_fingerprint, now_iso(), identity["id"]),
         )
         for jid, js in judge_stats.items():

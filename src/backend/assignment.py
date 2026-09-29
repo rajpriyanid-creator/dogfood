@@ -11,8 +11,8 @@ Constraints honored:
      API layer — this module only decides who reviews what)
 
 Determinism: judges and projects are processed in a fixed sort order
-(by id), and each project's judges are chosen by walking a per-track
-round-robin cursor. Re-running this against the same inputs produces
+(by id), and each project's judges are chosen by workload-ascending order 
+(breaking ties by judge id). Re-running this against the same inputs produces
 the same assignment set, which is what "deterministic assignment"
 means here — it does not mean an optimal balance, only a repeatable one.
 """
@@ -28,7 +28,6 @@ def build_assignments(projects, judges_by_track, team_owner_by_project,
     Returns list of (judge_id, project_id) pairs.
     """
     projects = sorted(projects, key=lambda p: p["id"])
-    cursors = defaultdict(int)  # track_id -> next judge index
     workload = defaultdict(int)  # judge_id -> assigned count
     pairs = []
 
@@ -42,11 +41,8 @@ def build_assignments(projects, judges_by_track, team_owner_by_project,
         if not eligible:
             continue
 
-        chosen = []
-        attempts = 0
-        # Walk the round-robin cursor, preferring the least-loaded judge
-        # among the next few in rotation, until target reached or pool
-        # exhausted.
+        # Choose judges preferring the least-loaded ones first,
+        # breaking ties by judge id.
         n_target = min(target_reviews_per_project, len(eligible))
         ordered = sorted(eligible, key=lambda j: (workload[j], j))
         chosen = ordered[:n_target]
