@@ -52,6 +52,20 @@ class TestFinalHardening(VerdictLedgerTestCase):
         self.assertIn(f'value="{dynamic_event_id}"', body)
         self.assertIn("Dynamic Audit Event", body)
 
+    def test_participant_with_closed_single_team_can_switch_to_open_event(self):
+        import auth
+        conn = self._db()
+        user = conn.execute(
+            "SELECT tm.user_id FROM team_members tm JOIN teams t ON t.id=tm.team_id "
+            "WHERE t.event_id='evt_01' LIMIT 1"
+        ).fetchone()["user_id"]
+        token = auth.create_session(conn, user)
+        conn.close()
+        page = self.client.get("/team", headers=self.auth_header(token))
+        body = page.get_data(as_text=True)
+        self.assertIn('id="event_context"', body)
+        self.assertIn('value="evt_live_2026"', body)
+
     def test_gallery_order_is_id_deterministic(self):
         page = self.client.get("/projects")
         self.assertEqual(page.status_code, 200)

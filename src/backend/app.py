@@ -523,12 +523,17 @@ def participant_home():
     open_events = [e for e in db.execute(
         "SELECT * FROM events ORDER BY created_at DESC"
     ).fetchall() if submissions_are_open(e)]
+    show_event_selector = (
+        len(teams) > 1 or not selected_event_id or
+        any(e["id"] != selected_event_id for e in open_events)
+    )
     return render_template("participant_home.html", team=team, projects=projects,
                             event=event, identity=identity,
                             status=event_status(event) if event else None,
                             open_now=submissions_are_open(event) if event else False,
                             open_events=open_events, teams=teams,
-                            selected_event_id=selected_event_id)
+                            selected_event_id=selected_event_id,
+                            show_event_selector=show_event_selector)
 
 
 @app.route("/team/create", methods=["POST"])

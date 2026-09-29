@@ -40,8 +40,9 @@ class TestResults(VerdictLedgerTestCase):
         import db as db_module
         conn = db_module.get_connection()
         row = conn.execute(
-            "SELECT * FROM project_results WHERE project_id='prj_01' "
-            "ORDER BY created_at DESC LIMIT 1"
+            "SELECT r.* FROM project_results r "
+            "JOIN normalization_runs n ON n.id=r.normalization_run_id "
+            "WHERE r.project_id='prj_01' ORDER BY n.version DESC LIMIT 1"
         ).fetchone()
         conn.close()
         self.assertIsNotNone(row["raw_score"])

@@ -3,7 +3,7 @@
 {% block content %}
 <h1>My team</h1>
 
-{% if teams|length > 1 or not selected_event_id %}
+{% if show_event_selector %}
   <div class="section">
     <label for="event_context">Event context</label>
     <select id="event_context" onchange="if (this.value) window.location='{{ url_for('participant_home') }}?event='+encodeURIComponent(this.value)">
