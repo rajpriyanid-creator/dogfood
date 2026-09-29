@@ -12,7 +12,13 @@
         <label for="name">Team name</label>
         <input type="text" id="name" name="name" required>
       </div>
-      <input type="hidden" name="event_id" value="evt_live_2026">
+      <label for="event_id">Event</label>
+      <select id="event_id" name="event_id" required>
+        <option value="">Select an open event</option>
+        {% for e in open_events %}
+            <option value="{{ e['id'] }}">{{ e['name'] }}</option>
+        {% endfor %}
+      </select>
       <button type="submit">Create team</button>
     </form>
   </div>

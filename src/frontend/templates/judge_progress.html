@@ -1,7 +1,14 @@
 {% extends "base.html" %}
 {% block title %}Judge progress — Verdict Ledger{% endblock %}
 {% block content %}
-<h1>Judge progress</h1>
+<h1>Judge progress{% if selected_event %} — {{ selected_event['name'] }}{% endif %}</h1>
+{% if not selected_event %}
+  <p>Select an event to view event-scoped judging progress.</p>
+  <ul>
+    {% for e in events %}<li><a href="{{ url_for('judge_progress', event_id=e['id']) }}">{{ e['name'] }}</a></li>{% endfor %}
+  </ul>
+{% endif %}
+{% if selected_event %}
 <table class="ledger">
   <thead><tr><th>Judge</th><th>Assigned</th><th>Completed</th><th>Remaining</th></tr></thead>
   <tbody>
@@ -15,4 +22,5 @@
     {% endfor %}
   </tbody>
 </table>
+{% endif %}
 {% endblock %}

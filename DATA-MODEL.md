@@ -64,7 +64,8 @@ derived on every read from `start_at` / `submissions_close` /
 Simple children of `events`.
 
 ### `teams`
-`id, event_id, name, owner_id, invite_code (unique), created_at`.
+`id, event_id, name, owner_id, invite_code (unique), created_at`, with a
+unique `(event_id, id)` key used by the project/team same-event foreign key.
 `invite_code` is a random token; joining a team requires presenting the
 real code (`team/join` route) — there is no separate "add member" endpoint
 that skips that check.
@@ -77,7 +78,8 @@ Composite PK `(team_id, user_id)` — a simple membership join table.
 ('draft'|'submitted'), submitted_at, created_at, updated_at`. A project
 belongs to exactly one team and (optionally) one track. `status` plus
 `submitted_at` distinguish a draft from a real submission; the public
-gallery only ever shows `status='submitted'` rows.
+gallery only ever shows `status='submitted'` rows. The schema enforces that
+`(event_id, team_id)` references a team in the same event.
 
 ### `judge_track_eligibility`
 Composite PK `(user_id, track_id)`. A judge is only assignable to projects
@@ -137,13 +139,17 @@ breakdown — every number shown there is read directly from this table, not
 recomputed on the fly.
 
 ### `review_normalizations`
-Per-run, per-review: `raw_weighted, z_score, normalized_value`. `z_score` is
+Per-run, per-review: `raw_weighted, z_score, normalized_value, comment`. The
+comment is the historical snapshot taken at normalization time. `z_score` is
 NULL when the judge carried no discrimination signal (n=1 or zero variance)
 and the value fell back to the global mean. The "why did this change?" page
 reads this table, not the live `scores` table, so editing a score after a
 run cannot change what that run is reported to have done.
 
 ### `project_results`
+`rubric_version_id` is populated only when every review for the project used
+one rubric version. For a mixed-rubric aggregate it is NULL; no arbitrary
+version is selected.
 `id, event_id, project_id, normalization_run_id, rubric_version_id,
 review_count, raw_score, normalized_score, created_at`, unique on
 `(project_id, normalization_run_id)`. Both raw and normalized values are

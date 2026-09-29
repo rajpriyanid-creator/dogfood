@@ -7,6 +7,14 @@ from base import VerdictLedgerTestCase
 
 class TestNormalizationRoute(VerdictLedgerTestCase):
 
+    def setUp(self):
+        super().setUp()
+        import db as db_module
+        conn = db_module.get_connection()
+        conn.execute("UPDATE events SET publish_state='draft', submissions_close='2020-01-01T00:00:00Z', judging_close='2020-01-01T00:00:00Z' WHERE id='evt_01'")
+        conn.commit()
+        conn.close()
+
     def _run(self, event_id="evt_01"):
         return self.client.post(f"/organizer/normalize/{event_id}",
                                  headers={**self.auth_header(self.ORGANIZER),
@@ -100,8 +108,9 @@ class TestNormalizationRoute(VerdictLedgerTestCase):
             headers=self.auth_header(self.ORGANIZER))
         self.assertEqual(resp.status_code, 201)
 
-        # Restore SUBMISSIONS_CLOSED / JUDGING / PUBLISHED
-        conn.execute("UPDATE events SET submissions_close='2020-01-01T00:00:00Z', judging_close='2020-01-01T00:00:00Z', publish_state='published' WHERE id='evt_01'")
+        # Restore SUBMISSIONS_CLOSED / JUDGING without publishing, so the
+        # second normalization remains within the lifecycle policy.
+        conn.execute("UPDATE events SET submissions_close='2020-01-01T00:00:00Z', judging_close='2020-01-01T00:00:00Z', publish_state='draft' WHERE id='evt_01'")
         conn.commit()
         conn.close()
 

@@ -32,6 +32,26 @@ globally-optimal balance, it walks a fixed, explainable procedure.
 
 ## Rubric
 
+Assignment generation is deterministic and additive: it inserts only missing
+`(judge_id, project_id)` pairs and never removes existing assignments.
+
+## Historical review evidence
+
+Each normalization stores the review comment in `review_normalizations.comment`.
+The explanation view reads that snapshot, so editing a live score comment after
+normalization does not rewrite the historical explanation.
+
+## Mixed rubric versions
+
+Each review is calculated using the rubric version pinned on its score. A
+project result records `rubric_version_id` only when all of its reviews used
+one version. If reviews from multiple rubric versions are aggregated, the
+result's `rubric_version_id` is NULL; no version is selected as a proxy.
+
+Score ranges must be compatible; normalization refuses incompatible ranges
+rather than pooling incomparable values. The documented normalization formula
+and algorithm version are unchanged.
+
 Weights must be non-negative and sum to 1.0 across an event's active
 rubric version. The demo weighting used for both seeded events:
 

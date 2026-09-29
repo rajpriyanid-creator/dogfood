@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Judge invited — Verdict Ledger{% endblock %}
+{% block content %}
+<h1>Judge invited</h1>
+<p>Event: <strong>{{ event['name'] }}</strong></p>
+<p>Email: <strong>{{ email }}</strong></p>
+{% if initial_password %}
+  <p>Initial password: <code>{{ initial_password }}</code></p>
+  <p class="meta">This credential is shown once and will not be shown again. Give it to the judge securely.</p>
+{% else %}
+  <p class="meta">This email already belongs to an existing judge. No new password was generated.</p>
+{% endif %}
+<p><a href="{{ url_for('manage_judges', event_id=event['id']) }}">Back to judges</a></p>
+{% endblock %}

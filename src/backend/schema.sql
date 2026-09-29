@@ -89,6 +89,7 @@ CREATE TABLE IF NOT EXISTS teams (
     owner_id    TEXT REFERENCES users(id),
     invite_code TEXT UNIQUE,
     created_at  TEXT NOT NULL
+    ,UNIQUE (event_id, id)
 );
 
 CREATE TABLE IF NOT EXISTS team_members (
@@ -121,7 +122,8 @@ CREATE TABLE IF NOT EXISTS projects (
         (status = 'submitted' AND submitted_at IS NOT NULL) OR
         (status = 'draft' AND submitted_at IS NULL)
     ),
-    UNIQUE (id, event_id)
+    UNIQUE (id, event_id),
+    FOREIGN KEY (event_id, team_id) REFERENCES teams(event_id, id) ON DELETE CASCADE
 );
 
 -- ---------------------------------------------------------------------

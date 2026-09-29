@@ -220,12 +220,14 @@ resolved.
 
 ## Gallery deterministic ordering
 
+The gallery uses generic deterministic `p.id ASC` ordering and never
+privileges a fixed event or fixture.
+
 The gallery uses deterministic project ordering so pagination and fixture
 visibility remain reproducible. The actual SQL implementation (in `app.py`
 `gallery()`) explicitly orders by:
-`ORDER BY (p.event_id = 'evt_01') DESC, p.id ASC`
-This ensures the checked fixture event is always at the top, and projects
-are always displayed in a stable order.
+`ORDER BY p.id ASC`
+This gives stable ordering without privileging a particular event.
 
 ## Audit log
 
@@ -303,12 +305,22 @@ with no `judging_close` stays SUBMISSIONS_CLOSED until published.
 - **One team per participant per event**, so a submission can never land
   under an unintended team.
 - **Seed is a single transaction** with a completion marker written last.
-- **Cross-table same-event invariants** (a project's track belongs to the
-  project's event; an assignment's event matches its project's) are enforced
-  in application code, because SQLite cannot express them declaratively.
-  Track/event agreement is enforced on project create/edit and judge invite
-  and is tested; assignment/event agreement holds because assignments are
-  only created from that event's own projects.
+- **Cross-table same-event invariants** (a project's team and track belong to
+  the project's event; an assignment's event matches its project's) are
+  enforced by composite project/team and assignment/project foreign keys plus
+  application validation for tracks and invitations.
+
+### Operational boundaries
+
+New judge credentials are random, stored only as PBKDF2 hashes, and revealed
+once to the organizer in the JSON response or HTML success page. Login,
+team-join, and judge-invite rate limiting is process-local and IP-based.
+The offline Docker architecture is a single Flask process with vendored
+dependencies and a SQLite volume; runtime needs no external service.
+The hash-chain append is atomic and tamper-evident, but most business writes
+commit immediately before their audit append. A crash in that narrow gap can
+leave a mutation without its audit row; closing that gap would require a
+larger transaction refactor, so this residual limitation is retained.
 
 ## How the tests were validated
 

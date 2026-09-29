@@ -7,6 +7,14 @@ from base import VerdictLedgerTestCase
 
 class TestResults(VerdictLedgerTestCase):
 
+    def setUp(self):
+        super().setUp()
+        import db as db_module
+        conn = db_module.get_connection()
+        conn.execute("UPDATE events SET publish_state='draft', submissions_close='2020-01-01T00:00:00Z', judging_close='2020-01-01T00:00:00Z' WHERE id='evt_01'")
+        conn.commit()
+        conn.close()
+
     def test_normalization_run_creates_results(self):
         resp = self.client.post("/organizer/normalize/evt_01",
                                  headers=self.auth_header(self.ORGANIZER))

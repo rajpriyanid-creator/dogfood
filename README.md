@@ -4,7 +4,8 @@ Evidence-first, self-hostable hackathon judging infrastructure.
 
 **CLAIMED:** T1 + T2
 **OFFICIAL ACCEPTANCE:** 7/7 PASS
-**PROJECT TESTS:** 239 passing
+The full project test suite is run as part of final verification; the verified
+count is intentionally not hardcoded here.
 
 ## Core flow
 
@@ -104,8 +105,8 @@ up` against `localhost:8080` with the byte-identical supplied `run.py`). The
 checker exercises 7 behaviours; everything in the "not covered" rows is
 verified only by this project's own tests, not by DOGFOOD's checker.
 
-**Tests:** 239, all passing, none skipped (213 original + 26 regression tests
-for the five hardening fixes). Several are mutation-checked: the audited bug
+**Tests:** all discovered tests must pass with none skipped. Several are
+mutation-checked: the audited bug
 was reintroduced and the tests confirmed to fail (see "How the tests were
 validated" in ARCHITECTURE.md).
 
@@ -156,10 +157,10 @@ Decided explicitly, not inherited:
 `tests/test_access_matrix.py` enumerates every route against every role and
 fails if a route exists without a declared policy.
 
-## Hardening fixes
+## Hardening and integrity
 
-Five targeted hardening fixes were implemented and regression-tested
-(26 new tests in `tests/test_five_fixes.py`):
+The repository includes regression coverage for lifecycle, event scoping,
+credential handling, normalization provenance, validation, and access control:
 
 1. **Normalization freshness gate.** Publishing a normalization run that is
    stale (scores were edited after the run was created) returns HTTP 409. A
@@ -175,7 +176,7 @@ Five targeted hardening fixes were implemented and regression-tested
 4. **Repo URL scheme validation.** `repo_url` fields are validated at both
    project create and edit to accept only `http://` or `https://` schemes.
    Non-HTTP schemes (e.g. `javascript:`, `file:`) are rejected with 400.
-5. **Offline Docker build.** All 7 Python wheels (Flask + transitive deps)
+5. **Offline Docker build.** All required Python wheels (Flask + transitive deps)
    are vendored in `vendor/`. The Dockerfile installs with
    `pip install --no-index --find-links=/app/vendor`, requiring no PyPI
    access at build time.
@@ -197,9 +198,9 @@ Five targeted hardening fixes were implemented and regression-tested
   any real deployment.
 - **In-memory rate limiting** is applied to login, team-join, and judge-invite requests to prevent brute-force guessing and abuse (process-local).
 - **Judge "invitation" means direct provisioning.** There is no email
-  service offline, so an organizer creates the judge account; the judge gets
-  a random password an organizer must reset by other means. There is no
-  password-reset flow.
+  service offline, so an organizer creates the judge account; a cryptographically
+  random initial password is revealed once in the JSON response or HTML success
+  page. There is no password-reset flow.
 - **Server-rendered HTML with no client-side JavaScript.** Deliberate for
   offline simplicity; every action is a full page load.
 - **Docs are advisory; the tests are the source of truth** for behaviour.
@@ -218,7 +219,7 @@ src/backend/             app.py (routes), auth.py, core.py, db.py, schema.sql,
 src/frontend/            templates/ and static/style.css (no CDN, no fonts)
 scripts/seed.py          atomic, idempotent seed
 vendor/                  7 vendored wheels (Flask + deps, offline Docker build)
-tests/                   unittest suite (239 tests)
+tests/                   unittest suite (full discovery; count verified at run time)
 ```
 
 ## Docs

@@ -92,11 +92,8 @@ def scoring_is_open(event_row) -> bool:
 
 
 def can_run_normalization(event_row) -> bool:
-    """Normalization may be (re-)run any time after submissions close,
-    including after publish (an organizer might re-run and re-publish),
-    but not while the event is still open for new submissions or before
-    it has started."""
-    return event_status(event_row) in (SUBMISSIONS_CLOSED, JUDGING, PUBLISHED)
+    """Normalization is allowed only before publication, after submissions close."""
+    return event_status(event_row) in (SUBMISSIONS_CLOSED, JUDGING)
 
 def configuration_is_frozen(event_row) -> bool:
     """Tracks, prizes, judges, rubric, and assignments cannot be modified

@@ -48,7 +48,9 @@
 <div class="section">
   <h2>Other</h2>
   <div class="actions">
-    <a class="btn secondary" href="{{ url_for('judge_progress') }}">Judge progress (all events)</a>
+    {% for ev in events %}
+      <a class="btn secondary" href="{{ url_for('judge_progress', event_id=ev['id']) }}">Judge progress: {{ ev['name'] }}</a>
+    {% endfor %}
     <a class="btn secondary" href="{{ url_for('audit_log_view') }}">Audit log</a>
   </div>
 </div>

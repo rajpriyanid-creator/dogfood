@@ -69,7 +69,7 @@ def create_session(conn, user_id: str, lifetime: timedelta = DEFAULT_SESSION_LIF
 
     Pass lifetime=None for a session that never expires - this is only
     used by scripts/seed.py for the fixed demo tokens
-    (org_demo_token / jdg_a_demo_token / etc.) that .dogfood.toml and
+    (the checker-provided seeded tokens) that .dogfood.toml and
     the acceptance checker rely on staying valid across restarts.
     A normal interactive login always gets a real expiry.
 

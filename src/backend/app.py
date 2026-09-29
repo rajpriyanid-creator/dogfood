@@ -12,6 +12,7 @@ import json
 import os
 import secrets
 import sys
+import math
 
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -160,10 +161,8 @@ def gallery():
     if event_id:
         sql += " AND p.event_id = ?"
         params.append(event_id)
-    # Deterministic ordering: fixture event first, then by id, so the
-    # checked fixture titles (Glass Signal, Small Meadow, Deep Compass —
-    # prj_01, prj_02, prj_03) are always on page one.
-    sql += " ORDER BY (p.event_id = 'evt_01') DESC, p.id ASC"
+    # Stable ordering is generic and independent of any particular fixture.
+    sql += " ORDER BY p.id ASC"
 
     projects = db.execute(sql, params).fetchall()
     tracks = db.execute("SELECT DISTINCT tr.id, tr.name FROM tracks tr").fetchall()
@@ -263,9 +262,9 @@ def _validate_repo_url(repo_url):
     except Exception:
         return "repo_url is not a valid URL"
     scheme = (parsed.scheme or "").lower()
-    if scheme not in ("http", "https"):
+    if scheme not in ("http", "https") or not parsed.hostname:
         return ("repo_url must use http:// or https:// "
-                f"(got scheme: {repr(scheme) if scheme else 'none'})")
+                "with a hostname")
     return None
 
 
@@ -508,10 +507,14 @@ def participant_home():
     if team:
         projects = db.execute("SELECT * FROM projects WHERE team_id=?", (team["id"],)).fetchall()
         event = db.execute("SELECT * FROM events WHERE id=?", (team["event_id"],)).fetchone()
+    open_events = [e for e in db.execute(
+        "SELECT * FROM events ORDER BY created_at DESC"
+    ).fetchall() if submissions_are_open(e)]
     return render_template("participant_home.html", team=team, projects=projects,
                             event=event, identity=identity,
                             status=event_status(event) if event else None,
-                            open_now=submissions_are_open(event) if event else False)
+                            open_now=submissions_are_open(event) if event else False,
+                            open_events=open_events)
 
 
 @app.route("/team/create", methods=["POST"])
@@ -520,9 +523,11 @@ def create_team():
     db = open_db()
     identity = current_identity()
     name = request.form.get("name", "").strip()
-    event_id = request.form.get("event_id", "evt_live_2026")
+    event_id = request.form.get("event_id", "").strip()
     if not name:
         return error("team name required", 400)
+    if not event_id:
+        return error("event_id is required", 400)
     event = db.execute("SELECT * FROM events WHERE id=?", (event_id,)).fetchone()
     if event is None:
         return error("unknown event", 404)
@@ -766,7 +771,11 @@ def api_judge_own_scores():
 
     rows = db.execute(
         "SELECT s.*, p.title AS project_title FROM scores s "
-        "JOIN projects p ON p.id = s.project_id WHERE s.judge_id=?",
+        "JOIN projects p ON p.id = s.project_id "
+        "JOIN assignments a ON a.id = s.assignment_id "
+        "  AND a.judge_id = s.judge_id AND a.project_id = s.project_id "
+        "  AND a.event_id = p.event_id "
+        "WHERE s.judge_id=?",
         (identity["id"],),
     ).fetchall()
     result = []
@@ -802,17 +811,27 @@ def api_judge_scores_by_path(judge_id):
 
 
 @app.route("/judge/progress")
+@app.route("/judge/progress/<event_id>")
 @require_role("organizer")
-def judge_progress():
+def judge_progress(event_id=None):
     db = open_db()
+    events = db.execute("SELECT * FROM events ORDER BY created_at DESC").fetchall()
+    if event_id is None:
+        return render_template("judge_progress.html", rows=[], events=events,
+                               selected_event=None, identity=current_identity())
+    event = db.execute("SELECT * FROM events WHERE id=?", (event_id,)).fetchone()
+    if event is None:
+        return error("event not found", 404)
     rows = db.execute(
         "SELECT u.id, u.name, COUNT(a.id) AS assigned, "
         "  SUM(CASE WHEN sc.id IS NOT NULL THEN 1 ELSE 0 END) AS completed "
         "FROM users u JOIN assignments a ON a.judge_id=u.id "
         "LEFT JOIN scores sc ON sc.judge_id=a.judge_id AND sc.project_id=a.project_id "
-        "WHERE u.role='judge' GROUP BY u.id ORDER BY u.id"
+        "WHERE u.role='judge' AND a.event_id=? GROUP BY u.id ORDER BY u.id",
+        (event_id,)
     ).fetchall()
-    return render_template("judge_progress.html", rows=rows, identity=current_identity())
+    return render_template("judge_progress.html", rows=rows, events=events,
+                           selected_event=event, identity=current_identity())
 
 
 # ---------------------------------------------------------------------
@@ -1050,6 +1069,14 @@ def manage_judges(event_id):
     if not name or not email:
         return error("name and email are required", 400)
 
+    # Validate the event-scoped track set before creating a user, so a bad
+    # invitation cannot leave a partial judge account behind.
+    for track_id in track_ids:
+        track = db.execute("SELECT event_id FROM tracks WHERE id=?", (track_id,)).fetchone()
+        if track is None or track["event_id"] != event_id:
+            return error(f"track {track_id} does not belong to this event", 400)
+
+    initial_password = None
     existing_user = db.execute("SELECT * FROM users WHERE lower(email)=?", (email,)).fetchone()
     if existing_user:
         if existing_user["role"] != "judge":
@@ -1057,16 +1084,14 @@ def manage_judges(event_id):
         judge_id = existing_user["id"]
     else:
         judge_id = f"jdg_{secrets.token_hex(6)}"
+        initial_password = secrets.token_urlsafe(18)
         db.execute(
             "INSERT INTO users (id, email, name, role, password_hash, created_at) "
             "VALUES (?, ?, ?, 'judge', ?, ?)",
-            (judge_id, email, name, hash_password(secrets.token_hex(12)), now_iso()),
+            (judge_id, email, name, hash_password(initial_password), now_iso()),
         )
 
     for track_id in track_ids:
-        track = db.execute("SELECT event_id FROM tracks WHERE id=?", (track_id,)).fetchone()
-        if track is None or track["event_id"] != event_id:
-            return error(f"track {track_id} does not belong to this event", 400)
         db.execute(
             "INSERT OR IGNORE INTO judge_track_eligibility (user_id, track_id) VALUES (?, ?)",
             (judge_id, track_id),
@@ -1076,8 +1101,11 @@ def manage_judges(event_id):
                  detail={"event_id": event_id, "email": email})
 
     if request.is_json:
-        return jsonify({"id": judge_id, "email": email}), 201
-    return redirect(url_for("manage_judges", event_id=event_id))
+        return jsonify({"id": judge_id, "email": email,
+                        "initial_password": initial_password}), 201
+    return render_template("judge_invitation_success.html", event=event,
+                           email=email, initial_password=initial_password,
+                           identity=identity)
 
 
 @app.route("/organizer/events/<event_id>/assignments", methods=["GET", "POST"])
@@ -1201,6 +1229,9 @@ def validate_rubric_criteria(criteria: list) -> list:
         except (TypeError, ValueError):
             errors.append(f"{c.get('key', '?')}: weight must be a number")
             continue
+        if not math.isfinite(weight):
+            errors.append(f"{c.get('key', '?')}: weight must be finite")
+            continue
         if weight < 0:
             errors.append(f"{c.get('key', '?')}: weight must be >= 0")
         total_weight += weight
@@ -1211,6 +1242,9 @@ def validate_rubric_criteria(criteria: list) -> list:
             lo, hi = float(lo), float(hi)
         except (TypeError, ValueError):
             errors.append(f"{c.get('key', '?')}: min_value/max_value must be numbers")
+            continue
+        if not math.isfinite(lo) or not math.isfinite(hi):
+            errors.append(f"{c.get('key', '?')}: min_value/max_value must be finite")
             continue
         if hi <= lo:
             errors.append(f"{c.get('key', '?')}: max_value must be greater than min_value")
@@ -1642,7 +1676,8 @@ def run_normalization_route(event_id):
                 "normalization_run_id, rubric_version_id, review_count, raw_score, "
                 "normalized_score, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (f"result_{pid}_{run_id}", event_id, pid, run_id,
-                 sorted(rv_ids)[-1], len(rows), raw_avg, norm_avg, now_iso()),
+                 next(iter(rv_ids)) if len(rv_ids) == 1 else None,
+                 len(rows), raw_avg, norm_avg, now_iso()),
             )
         db.commit()
     except Exception:
@@ -1824,7 +1859,9 @@ def audit_log_view():
 @require_role("organizer")
 def export_csv():
     db = open_db()
-    event_id = request.args.get("event", "evt_01")
+    event_id = request.args.get("event", "").strip()
+    if not event_id:
+        return error("event query parameter is required", 400)
     rows = db.execute(
         "SELECT s.judge_id, s.project_id, p.title, s.raw_weighted, s.comment "
         "FROM scores s JOIN assignments a ON a.judge_id=s.judge_id AND a.project_id=s.project_id "

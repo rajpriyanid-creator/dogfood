@@ -41,6 +41,7 @@ POLICY = {
     ("GET", "/api/judges/<judge_id>/scores"): {"judge"},
 
     ("GET", "/judge/progress"): ORG,
+    ("GET", "/judge/progress/<event_id>"): ORG,
     ("GET", "/organizer"): ORG,
     ("GET", "/organizer/audit"): ORG,
     ("GET", "/organizer/events/new"): ORG,
