@@ -270,13 +270,22 @@ def _validate_repo_url(repo_url):
 
 def _parse_project_payload(request):
     """Read title/summary/repo_url/track_id from either a JSON body or a
-    form post, uniformly."""
+    form post, uniformly. Return ((values), error_message); reject malformed
+    JSON shapes and non-string scalar fields before any string operation or
+    database lookup can occur."""
     if request.is_json:
-        payload = request.get_json(silent=True) or {}
-        return (payload.get("title"), payload.get("summary"),
-                payload.get("repo_url"), payload.get("track_id"))
-    return (request.form.get("title"), request.form.get("summary"),
-            request.form.get("repo_url"), request.form.get("track_id"))
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict):
+            return None, "JSON body must be an object"
+        values = (payload.get("title"), payload.get("summary"),
+                  payload.get("repo_url"), payload.get("track_id"))
+    else:
+        values = (request.form.get("title"), request.form.get("summary"),
+                  request.form.get("repo_url"), request.form.get("track_id"))
+    for field, value in zip(("title", "summary", "repo_url", "track_id"), values):
+        if value is not None and not isinstance(value, str):
+            return None, f"{field} must be a string"
+    return values, None
 
 
 def _validate_track_for_event(db, track_id, event_id):
@@ -360,7 +369,10 @@ def submit_project():
         return error("submissions are not open for this event "
                      f"(status: {event_status(event)})", 403)
 
-    title, summary, repo_url, track_id = _parse_project_payload(request)
+    parsed, payload_error = _parse_project_payload(request)
+    if payload_error:
+        return error(payload_error, 400)
+    title, summary, repo_url, track_id = parsed
     if not title:
         return error("title is required", 400)
 
@@ -431,7 +443,10 @@ def edit_project(project_id):
                      resource=project_id, detail={"reason": "submissions_closed"})
         return error("submissions are closed for this event; the draft can no longer be edited", 403)
 
-    title, summary, repo_url, track_id = _parse_project_payload(request)
+    parsed, payload_error = _parse_project_payload(request)
+    if payload_error:
+        return error(payload_error, 400)
+    title, summary, repo_url, track_id = parsed
     if not title:
         return error("title is required", 400)
     url_error = _validate_repo_url(repo_url)

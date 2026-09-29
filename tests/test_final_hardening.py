@@ -218,6 +218,28 @@ class TestFinalHardening(VerdictLedgerTestCase):
                                      headers=self.api_header(token))
         self.assertEqual(submitted.status_code, 400)
 
+    def test_project_payload_rejects_non_string_fields_with_400(self):
+        import auth
+        conn = self._db()
+        user = conn.execute(
+            "SELECT user_id FROM team_members WHERE team_id='live_tm_1' LIMIT 1"
+        ).fetchone()["user_id"]
+        token = auth.create_session(conn, user)
+        conn.close()
+        for field, value in (("title", []), ("summary", {}),
+                             ("repo_url", []), ("track_id", {})):
+            response = self.client.post(
+                "/projects/new",
+                json={"title": "Valid title", field: value},
+                headers=self.auth_header(token),
+            )
+            self.assertEqual(response.status_code, 400, (field, response.get_data(as_text=True)))
+        malformed = self.client.post(
+            "/projects/new", json=["not", "an", "object"],
+            headers=self.auth_header(token),
+        )
+        self.assertEqual(malformed.status_code, 400)
+
     def test_event_creation_rejects_malformed_json_lists(self):
         from datetime import datetime, timedelta, timezone
         now = datetime.now(timezone.utc)

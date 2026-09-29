@@ -1,9 +1,9 @@
 DOGFOOD 2026 acceptance report
 
-verified_at: 2026-09-29T18:19:40.1273436+05:30
-repository: aa5d459a24069c1015a15d9bcba83d949b7039f0
-environment: docker compose up --build; healthz healthy
-test_command: python3 -m unittest discover -s tests -p "test_*.py" (272 passed)
+verified_at: 2026-09-29T18:26:23.2242518+05:30
+repository: a8b0942c58998b82062c5057c797df456279fc99
+environment: docker compose up --build -d; healthz healthy
+test_command: python3 -m unittest discover -s tests -p "test_*.py" (273 passed)
 docker_command: docker compose up --build -d
 checker_command: python3 run.py .dogfood.toml
 
