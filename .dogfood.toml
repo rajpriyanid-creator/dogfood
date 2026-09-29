@@ -21,10 +21,9 @@ participant = "Cookie: session=prt_demo_token"
 gallery      = "/projects"
 submit       = "/projects/new"
 judge_scores = "/api/judge/scores"
-# peer_scores is the genuine endpoint that would return judge_a's scores
-# if the authorization layer were incorrectly implemented. The backend
-# checks the authenticated session's identity against the requested
-# judge, not the other way around — see api_judge_own_scores() in
-# src/backend/app.py.
+# judge_a -> fixture judge jdg_01
+# judge_b -> fixture judge jdg_02
+# peer_scores intentionally requests jdg_01 while authenticated as judge_b
+# backend authorization must reject this request with 403
 peer_scores  = "/api/judge/scores?judge=jdg_01"
 csv_export   = "/api/export.csv?event=evt_01"

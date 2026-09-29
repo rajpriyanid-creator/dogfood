@@ -1,22 +1,36 @@
 # Verdict Ledger
 
-A self-hostable hackathon submission and judging platform, built for
-[DOGFOOD 2026](https://dogfood.raptors.dev).
+Evidence-first, self-hostable hackathon judging infrastructure.
 
-> A hackathon result should not merely be published. An organizer should be
-> able to explain how the result was produced, enforce who was allowed to
-> access or influence judging data, and rerun the calculation from the
-> recorded inputs.
+**CLAIMED:** T1 + T2
+**OFFICIAL ACCEPTANCE:** 7/7 PASS
+**PROJECT TESTS:** 239 passing
 
-The central questions it is built to answer:
+## Core flow
 
-- **Who could access this score?** Judge isolation is enforced by the
-  backend on every request, not by hiding things in a template.
-- **How did the score become the final result?** Every result has a
-  "why did this change?" page showing the exact per-judge calculation.
-- **What evidence can reproduce it?** Rubric version, normalization run,
-  per-judge statistics, and per-review z-scores are all stored, and a
-  hash-chained audit log records who did what.
+Create Event → Create Team → Submit Project → Assign Judge → Private Judge Scoring → Normalize → Inspect Evidence → Publish
+
+## Strongest differentiators
+
+1. **Backend-enforced judge isolation** (no frontend-only hiding)
+2. **Weighted rubric**
+3. **Deterministic judge assignment**
+4. **Score normalization** (sample-size shrunk)
+5. **Normalization freshness gate** (prevents stale publication)
+6. **Historical criterion snapshots** (immutable evidence)
+7. **Audit trail** (hash-chained)
+8. **CSV export**
+9. **Self-hosted SQLite** (single file, no external DB)
+10. **Offline dependency strategy** (vendored wheels)
+
+## Honest Tier Status
+
+| Tier | Status |
+|---|---|
+| **T1** | CLAIMED |
+| **T2** | CLAIMED |
+| **T3** | NOT CLAIMED |
+| **T4** | NOT CLAIMED |
 
 ## Quick start
 

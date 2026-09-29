@@ -132,8 +132,33 @@ is minted on every login, so there is no session-fixation path.
   `.dogfood.toml` stays valid. **Delete or rotate them before running a
   real event**: anyone who has read this repo has organizer access to a
   default install.
-- No rate limiting on `/login` or `/team/join`.
 - There is no "log out everywhere" and no idle timeout.
+
+## Brute force & rate limiting
+
+**NOT IMPLEMENTED.**
+
+**Threat.** Repeated password guessing against `/login` or invite-code
+guessing against `/team/join`.
+
+**Mitigation.** None built in. This is a deliberate scope limitation for this
+offline, self-hostable build. Since it requires no Redis or external
+state-store, a production deployment should enforce rate limiting (e.g., 5
+failed attempts per IP per 60 seconds) at the reverse-proxy layer (e.g.,
+Nginx or Traefik) rather than in the application layer.
+
+## Password reset
+
+**NOT IMPLEMENTED.**
+
+**Threat.** A user loses their password and cannot regain access.
+
+**Mitigation.** This platform is designed to operate completely offline
+without external network access, so there is no SMTP integration or
+email-based password reset flow. An organizer provisions judge accounts
+directly. If a judge loses their credentials, the organizer must generate a
+new account or reset it via out-of-band database access. This is an
+intentional limitation of the offline architecture.
 
 ## Session token hashing
 

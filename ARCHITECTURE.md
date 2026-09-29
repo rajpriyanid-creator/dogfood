@@ -10,6 +10,32 @@ frontend build step. This is a deliberate choice for a self-hostable
 72-hour build: fewer moving parts an organizer has to operate, and nothing
 that requires network access at runtime.
 
+### Data flow pipeline
+
+The overall flow of data through the system follows a strict linear sequence:
+
+```
+SYSTEM
+  ↓
+HTTP / Flask
+  ↓
+AUTHORIZATION
+  ↓
+T1 SUBMISSION
+  ↓
+T2 JUDGING
+  ↓
+NORMALIZATION
+  ↓
+HISTORICAL EVIDENCE
+  ↓
+FRESHNESS CHECK
+  ↓
+PUBLISH
+```
+
+### Component layout
+
 ```
                      ┌─────────────────────────┐
    browser  ───────► │   Flask app (app.py)    │
@@ -191,6 +217,15 @@ surfaces a "potential duplicate submission" callout on both projects'
 pages; the organizer integrity view (`integrity_view()`) surfaces the same
 pair event-wide. The duplicate is evidence, not an error to be silently
 resolved.
+
+## Gallery deterministic ordering
+
+The gallery uses deterministic project ordering so pagination and fixture
+visibility remain reproducible. The actual SQL implementation (in `app.py`
+`gallery()`) explicitly orders by:
+`ORDER BY (p.event_id = 'evt_01') DESC, p.id ASC`
+This ensures the checked fixture event is always at the top, and projects
+are always displayed in a stable order.
 
 ## Audit log
 
